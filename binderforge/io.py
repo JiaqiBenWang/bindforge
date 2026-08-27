@@ -1,0 +1,292 @@
+"""FASTA/PDB I/O plus a minimal full-atom peptide builder.
+
+The builder is used by the mock (dry-run) provider and by FASTA-only targets so
+that MD always has a loadable all-atom structure. It produces heavy-atom-only
+coordinates (hydrogens are added later by OpenMM's ``Modeller.addHydrogens``).
+"""
+
+from __future__ import annotations
+
+from typing import List, Optional
+
+import numpy as np
+
+# 3-letter -> 1-letter amino-acid code (standard 20 + common variants)
+AA3TO1 = {
+    "ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C",
+    "GLN": "Q", "GLU": "E", "GLY": "G", "HIS": "H", "ILE": "I",
+    "LEU": "L", "LYS": "K", "MET": "M", "PHE": "F", "PRO": "P",
+    "SER": "S", "THR": "T", "TRP": "W", "TYR": "Y", "VAL": "V",
+    "MSE": "M", "HID": "H", "HIE": "H", "HIP": "H",
+}
+
+# 1-letter -> 3-letter (uses the naming amber14-all.xml expects; HIS -> HIE)
+AA1TO3 = {
+    "A": "ALA", "R": "ARG", "N": "ASN", "D": "ASP", "C": "CYS",
+    "Q": "GLN", "E": "GLU", "G": "GLY", "H": "HIE", "I": "ILE",
+    "L": "LEU", "K": "LYS", "M": "MET", "F": "PHE", "P": "PRO",
+    "S": "SER", "T": "THR", "W": "TRP", "Y": "TYR", "V": "VAL",
+}
+
+# Heavy-atom names per residue (order matters; matches amber14-all.xml templates)
+SIDECHAIN_ATOMS = {
+    "A": ["CB"],
+    "R": ["CB", "CG", "CD", "NE", "CZ", "NH1", "NH2"],
+    "N": ["CB", "CG", "OD1", "ND2"],
+    "D": ["CB", "CG", "OD1", "OD2"],
+    "C": ["CB", "SG"],
+    "Q": ["CB", "CG", "CD", "OE1", "NE2"],
+    "E": ["CB", "CG", "CD", "OE1", "OE2"],
+    "G": [],
+    "H": ["CB", "CG", "ND1", "CD2", "CE1", "NE2"],
+    "I": ["CB", "CG1", "CG2", "CD1"],
+    "L": ["CB", "CG", "CD1", "CD2"],
+    "K": ["CB", "CG", "CD", "CE", "NZ"],
+    "M": ["CB", "CG", "SD", "CE"],
+    "F": ["CB", "CG", "CD1", "CD2", "CE1", "CE2", "CZ"],
+    "P": ["CB", "CG", "CD"],
+    "S": ["CB", "OG"],
+    "T": ["CB", "OG1", "CG2"],
+    "W": ["CB", "CG", "CD1", "CD2", "NE1", "CE2", "CE3", "CZ2", "CZ3", "CH2"],
+    "Y": ["CB", "CG", "CD1", "CD2", "CE1", "CE2", "CZ", "OH"],
+    "V": ["CB", "CG1", "CG2"],
+}
+
+BACKBONE = ["N", "CA", "C", "O"]
+
+
+def read_fasta(path: str) -> List[str]:
+    """Read a FASTA file and return a list of sequences (one per record)."""
+    seqs: List[str] = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                seqs.append("")
+                continue
+            if not seqs:
+                seqs.append("")
+            seqs[-1] += "".join(ch for ch in line if ch.isalpha())
+    return [s for s in seqs if s]
+
+
+def parse_pdb(path: str) -> List[dict]:
+    """Parse ATOM/HETATM records into a list of atom dicts (coordinates in Å)."""
+    atoms: List[dict] = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.startswith(("ATOM", "HETATM")):
+                continue
+            name = line[12:16].strip()
+            resname = line[17:20].strip()
+            chain = line[21] if len(line) > 21 else " "
+            elem = line[76:78].strip() if len(line) >= 78 else ""
+            if not elem:
+                elem = name[0] if name and name[0] in "CNOSPH" else "C"
+            atoms.append({
+                "serial": int(line[6:11]),
+                "name": name,
+                "resname": resname,
+                "chain": (chain.strip() or "A"),
+                "resseq": int(line[22:26]),
+                "x": float(line[30:38]),
+                "y": float(line[38:46]),
+                "z": float(line[46:54]),
+                "element": elem,
+            })
+    return atoms
+
+
+def sequence_from_pdb(path: str) -> Optional[str]:
+    """Extract the amino-acid sequence from CA atoms, ordered by (chain, resseq)."""
+    seen = {}
+    for a in parse_pdb(path):
+        if a["name"] == "CA":
+            key = (a["chain"], a["resseq"])
+            if key not in seen:
+                seen[key] = a["resname"]
+    order = sorted(seen.keys(), key=lambda k: (k[0], k[1]))
+    return "".join(AA3TO1.get(seen[k], "X") for k in order) or None
+
+
+def _element_of(name: str) -> str:
+    return name[0] if name and name[0] in "CNOSPH" else "C"
+
+
+def _make_atom(serial: int, name: str, res3: str, chain: str, resseq: int, xyz) -> dict:
+    x, y, z = xyz
+    return {
+        "serial": serial, "name": name, "resname": res3, "chain": chain,
+        "resseq": resseq, "x": float(x), "y": float(y), "z": float(z),
+        "element": _element_of(name),
+    }
+
+
+def _fmt_atom(a: dict) -> str:
+    return (
+        f"ATOM  {a['serial']:>5d} {a['name']:>4s} {a['resname']:>3s} "
+        f"{a['chain']:1s}{a['resseq']:>4d}    "
+        f"{a['x']:8.3f}{a['y']:8.3f}{a['z']:8.3f}"
+        f"{1.0:6.2f}{0.0:6.2f}          {a['element']:>2s}"
+    )
+
+
+def write_pdb(atoms: List[dict], path: str) -> str:
+    """Write a list of atom dicts to a PDB file. Returns `path`."""
+    lines = ["REMARK  generated by BindForge"]
+    lines += [_fmt_atom(a) for a in atoms]
+    lines += ["TER", "END"]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return path
+
+
+# Idealized backbone geometry (Å / degrees) for a trans, extended (β-like) strand.
+_N_CA = 1.458
+_CA_C = 1.525
+_C_N = 1.329
+_C_O = 1.231
+_ANG_N_CA_C = 111.0
+_ANG_CA_C_N = 116.0
+_ANG_C_N_CA = 122.0
+_ANG_CA_C_O = 120.5
+_OMEGA = 180.0    # trans peptide bond
+_PHI = 120.0      # extended backbone dihedrals (this builder's sign convention)
+_PSI = 120.0
+
+# ~109.5 deg turn between successive sidechain bonds -> sp3-like bond angles
+_TURN = np.deg2rad(70.5)
+
+
+def _place(a, b, c, r, theta_deg, phi_deg):
+    """Place atom D bonded to C, given three prior atoms A-B-C.
+
+    D-C = r (Å), angle B-C-D = theta_deg, dihedral A-B-C-D = phi_deg.
+    """
+    ba = np.asarray(a, dtype=float) - np.asarray(b, dtype=float)
+    bc = np.asarray(b, dtype=float) - np.asarray(c, dtype=float)
+    u = bc / np.linalg.norm(bc)                       # C -> B
+    n = np.cross(ba, bc)
+    n = n / np.linalg.norm(n)                          # plane normal
+    p = np.cross(n, u)                                 # in-plane, perp to C->B
+    th = np.deg2rad(theta_deg)
+    d = u * np.cos(th) + p * np.sin(th)
+    d = d / np.linalg.norm(d)
+    ph = np.deg2rad(phi_deg)
+    d = (np.cos(ph) * d + np.sin(ph) * np.cross(u, d)
+         + (1 - np.cos(ph)) * np.dot(u, d) * u)        # rotate d about C->B by phi
+    return np.asarray(c, dtype=float) + r * d
+
+
+def _rot_axis(axis, angle):
+    """Rotation matrix about an arbitrary axis (Rodrigues' formula)."""
+    axis = np.asarray(axis, dtype=float)
+    axis = axis / np.linalg.norm(axis)
+    K = np.array([[0.0, -axis[2], axis[1]],
+                  [axis[2], 0.0, -axis[0]],
+                  [-axis[1], axis[0], 0.0]])
+    return np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
+
+
+def build_peptide_pdb(sequence: str, path: Optional[str] = None, chain: str = "A") -> List[dict]:
+    """Build a full heavy-atom PDB for `sequence` (extended β backbone + coil sidechains).
+
+    The backbone is generated by frame propagation of idealized bond lengths and
+    angles (not a collinear chain), so it minimizes and equilibrates cleanly in
+    OpenMM. Returns a list of atom dicts and, if `path` is given, writes the PDB.
+    """
+    seq = sequence.upper()
+    n = len(seq)
+    N = [None] * n
+    CA = [None] * n
+    C = [None] * n
+    O = [None] * n
+
+    # Seed the first residue.
+    N[0] = np.array([0.0, 0.0, 0.0])
+    CA[0] = np.array([_N_CA, 0.0, 0.0])
+    dummy = np.array([0.0, -1.0, 0.0])  # off the N-CA axis, to define the C0 plane
+    C[0] = _place(dummy, N[0], CA[0], _CA_C, _ANG_N_CA_C, 0.0)
+    O[0] = _place(N[0], CA[0], C[0], _C_O, _ANG_CA_C_O, 0.0)
+    for i in range(n - 1):
+        N[i + 1] = _place(N[i], CA[i], C[i], _C_N, _ANG_CA_C_N, _OMEGA)
+        CA[i + 1] = _place(CA[i], C[i], N[i + 1], _N_CA, _ANG_C_N_CA, _PHI)
+        C[i + 1] = _place(C[i], N[i + 1], CA[i + 1], _CA_C, _ANG_N_CA_C, _PSI)
+        O[i + 1] = _place(N[i + 1], CA[i + 1], C[i + 1], _C_O, _ANG_CA_C_O, 0.0)
+
+    atoms: List[dict] = []
+    serial = 0
+    for i, aa in enumerate(seq):
+        res3 = AA1TO3.get(aa)
+        if res3 is None:
+            raise ValueError(f"Unsupported amino acid: {aa!r}")
+        resseq = i + 1
+        bb = {"N": N[i], "CA": CA[i], "C": C[i], "O": O[i]}
+        for name in BACKBONE:
+            serial += 1
+            atoms.append(_make_atom(serial, name, res3, chain, resseq, bb[name]))
+
+        # C-terminal carboxylate oxygen, required by OpenMM's terminal templates.
+        if i == n - 1:
+            serial += 1
+            atoms.append(_make_atom(serial, "OXT", res3, chain, resseq,
+                                    _place(N[i], CA[i], C[i], _C_O, _ANG_CA_C_O, 180.0)))
+
+        # Sidechain: planar outward zig-zag (alternating ~70.5 deg turns about a
+        # fixed axis perpendicular to the first bond) so it extends away from the
+        # backbone instead of spiraling back onto CA.
+        sc_names = SIDECHAIN_ATOMS.get(aa, [])
+        if sc_names:
+            n_ca = N[i] - CA[i]
+            c_ca = C[i] - CA[i]
+            n_ca = n_ca / np.linalg.norm(n_ca)
+            c_ca = c_ca / np.linalg.norm(c_ca)
+            d = -(n_ca + c_ca)
+            d = d / np.linalg.norm(d)                    # away from backbone
+            perp = np.cross(d, C[i] - N[i])
+            perp = perp / np.linalg.norm(perp)           # fixed axis, perp to d
+            pos = np.asarray(CA[i], dtype=float)
+            sign = 1.0
+            for j, name in enumerate(sc_names):
+                step = 1.53 if j == 0 else 1.5
+                pos = pos + d * step
+                serial += 1
+                atoms.append(_make_atom(serial, name, res3, chain, resseq, pos))
+                d = _rot_axis(perp, sign * _TURN) @ d
+                sign *= -1.0
+
+    if path:
+        write_pdb(atoms, path)
+    return atoms
+
+
+def build_complex_pdb(target_pdb: str, binder_seq: str, out_path: str,
+                      binder_chain: str = "B", separation: float = 15.0) -> str:
+    """Combine a target (from `target_pdb`) + a built binder into one complex PDB.
+
+    The binder is translated to sit `separation` Å to the right of the target's
+    rightmost atom (so the two chains do not overlap) and renumbered from 1 on
+    its own chain.
+    """
+    target_atoms = parse_pdb(target_pdb)
+    binder_atoms = build_peptide_pdb(binder_seq)
+
+    xs = [a["x"] for a in target_atoms]
+    ys = [a["y"] for a in target_atoms]
+    zs = [a["z"] for a in target_atoms]
+    cy = float(np.mean(ys)) if ys else 0.0
+    cz = float(np.mean(zs)) if zs else 0.0
+    dx = (max(xs) + separation) if xs else separation
+
+    for a in binder_atoms:
+        a["chain"] = binder_chain
+        a["x"] += dx
+        a["y"] += cy
+        a["z"] += cz
+
+    all_atoms = target_atoms + binder_atoms
+    for i, a in enumerate(all_atoms, 1):
+        a["serial"] = i
+    return write_pdb(all_atoms, out_path)
