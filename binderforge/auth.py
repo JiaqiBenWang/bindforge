@@ -20,14 +20,25 @@ from typing import Optional, Tuple
 
 _PBKDF2_ITERATIONS = 200_000
 _TOKEN_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+FREE_DAILY_LIMIT = 2  # free jobs per user per Beijing calendar day
+_BEIJING_OFFSET = 8 * 3600  # UTC+8
 
 
 class AuthError(Exception):
     """Raised for bad credentials, duplicate emails, or invalid tokens."""
 
 
+class QuotaExceeded(Exception):
+    """Raised when a user has hit their free daily limit."""
+
+
 def _now() -> int:
     return int(time.time())
+
+
+def _beijing_date(ts: int) -> str:
+    """Return the Beijing (UTC+8) calendar date 'YYYY-MM-DD' for a unix ts."""
+    return time.strftime("%Y-%m-%d", time.gmtime(ts + _BEIJING_OFFSET))
 
 
 # ── SQLite storage ────────────────────────────────────────────────────────
@@ -47,6 +58,20 @@ class AuthStore:
                     created_at INTEGER NOT NULL
                 )
                 """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    job_id TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_usage_user_date ON usage (user_id, date)"
             )
 
     def _conn(self) -> sqlite3.Connection:
@@ -86,6 +111,43 @@ class AuthStore:
                 "SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)
             ).fetchone()
         return dict(row) if row else None
+
+    # ── daily usage / quota ────────────────────────────────────────────
+    def usage_today(self, user_id: str) -> int:
+        day = _beijing_date(_now())
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM usage WHERE user_id = ? AND date = ?",
+                (user_id, day),
+            ).fetchone()
+        return int(row["n"])
+
+    def record_usage(self, user_id: str, job_id: str) -> None:
+        """Charge one task against the user's daily quota (idempotent per job)."""
+        with self._conn() as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM usage WHERE job_id = ?", (job_id,)
+            ).fetchone()
+            if exists:
+                return
+            conn.execute(
+                "INSERT INTO usage (user_id, date, job_id, created_at) VALUES (?, ?, ?, ?)",
+                (user_id, _beijing_date(_now()), job_id, _now()),
+            )
+
+    def check_and_charge(self, user_id: str, job_id: str, limit: int = FREE_DAILY_LIMIT) -> None:
+        """Charge a task, raising QuotaExceeded if the free daily limit is hit.
+
+        Paid users are not implemented yet; `limit` is the hook where a paid
+        tier would raise or bypass the cap.
+        """
+        used = self.usage_today(user_id)
+        if used >= limit:
+            raise QuotaExceeded(
+                f"今日免费任务已用完（{used}/{limit}）。付费解锁更多任务（即将上线）。"
+                f" Daily free limit reached ({used}/{limit}); paid tier coming soon."
+            )
+        self.record_usage(user_id, job_id)
 
 
 # ── Password hashing (PBKDF2) ─────────────────────────────────────────────

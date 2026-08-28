@@ -22,12 +22,13 @@ from pydantic import BaseModel
 
 from binderforge import auth
 from binderforge.config import Config
-from binderforge.pipeline import run_pipeline
+from binderforge.pipeline import load_target_sequence, run_pipeline
 
 _JOBS: Dict[str, dict] = {}
 
 _UPLOAD_DIR = "uploads"
 _ALLOWED_SUFFIXES = (".pdb", ".cif", ".mmcif", ".fasta", ".fa", ".faa", ".txt")
+_MAX_TARGET_RESIDUES = 500  # business rule: free tier targets must be ≤ 500 aa
 
 _DATA_DIR = os.environ.get("BINDFORGE_DATA_DIR", "data")
 _STORE = auth.AuthStore(os.path.join(_DATA_DIR, "users.db"))
@@ -42,6 +43,28 @@ def _parse_length(s: str):
         return int(a), int(b)
     n = int(s)
     return n, n
+
+
+def _target_residue_count(target: str) -> int:
+    """Resolve a target (file path or raw sequence) to its residue count."""
+    seq = load_target_sequence(target)
+    return len(seq)
+
+
+def _check_size(target: str) -> None:
+    """Reject targets over the 500-aa business limit."""
+    try:
+        n = _target_residue_count(target)
+    except Exception as exc:  # noqa: BLE001 — unparseable target surfaces its own error
+        raise HTTPException(status_code=400, detail=f"无法解析靶点 / Cannot parse target: {exc}")
+    if n > _MAX_TARGET_RESIDUES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"靶点 {n} aa 超过 {_MAX_TARGET_RESIDUES} aa 限制，请缩短或拆分靶点。"
+                f" Target ({n} aa) exceeds the {_MAX_TARGET_RESIDUES}-aa limit."
+            ),
+        )
 
 
 class JobRequest(BaseModel):
@@ -177,12 +200,22 @@ def create_app() -> FastAPI:
 
     @app.get("/api/me")
     def me(user_id: str = Depends(_user_id_from_headers)):
-        return _public_user(user_id)
+        user = _public_user(user_id)
+        user["quota"] = {
+            "used_today": _STORE.usage_today(user_id),
+            "daily_limit": auth.FREE_DAILY_LIMIT,
+        }
+        return user
 
     # ── Jobs (authenticated) ───────────────────────────────────────────
     @app.post("/api/jobs")
     def submit(req: JobRequest, user_id: str = Depends(_user_id_from_headers)):
+        _check_size(req.target)
         job_id = uuid.uuid4().hex[:12]
+        try:
+            _STORE.check_and_charge(user_id, job_id)
+        except auth.QuotaExceeded as exc:
+            raise HTTPException(status_code=429, detail=str(exc))
         _JOBS[job_id] = {
             "id": job_id,
             "user_id": user_id,
@@ -211,6 +244,11 @@ def create_app() -> FastAPI:
         """Upload a PDB/CIF/FASTA target file and run the pipeline on it."""
         job_id = uuid.uuid4().hex[:12]
         path = _save_upload(file, job_id)
+        _check_size(path)
+        try:
+            _STORE.check_and_charge(user_id, job_id)
+        except auth.QuotaExceeded as exc:
+            raise HTTPException(status_code=429, detail=str(exc))
         req = JobRequest(
             target=path, n_designs=n_designs, length=length, hotspot=hotspot,
             md_top=md_top, md_ns=md_ns, dry_run=dry_run, seed=seed,
@@ -252,6 +290,22 @@ def create_app() -> FastAPI:
             "result": job.get("result"), "meta": job.get("meta"),
             "logs": job.get("logs", ""),
         }
+
+    @app.get("/api/jobs/{job_id}/structure/{filename}")
+    def get_structure(job_id: str, filename: str, user_id: str = Depends(_user_id_from_headers)):
+        """Serve a generated complex PDB (for the 3D viewer), scoped to the owner."""
+        job = _JOBS.get(job_id)
+        if job is None or job.get("user_id") != user_id:
+            raise HTTPException(status_code=404, detail="job not found")
+        if not filename.lower().endswith((".pdb", ".cif")):
+            raise HTTPException(status_code=400, detail="only .pdb/.cif files are served")
+        # Only ever join a basename into the results dir — no traversal.
+        safe = os.path.basename(filename)
+        path = os.path.join("results", job_id, safe)
+        if not os.path.isfile(path):
+            raise HTTPException(status_code=404, detail="structure not found")
+        from fastapi.responses import FileResponse
+        return FileResponse(path, media_type="chemical/x-pdb", filename=safe)
 
     # Minimal single-page frontend (no build step).
     static_dir = os.path.join(os.path.dirname(__file__), "static")

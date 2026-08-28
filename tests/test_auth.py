@@ -44,3 +44,25 @@ def test_token_issue_and_verify(tmp_path):
     assert auth.verify_token(secret, token + "x") is None
     assert auth.verify_token(secret, "garbage.token") is None
     assert auth.verify_token("wrong-secret", token) is None
+
+
+def test_daily_quota(tmp_path):
+    store = auth.AuthStore(str(tmp_path / "users.db"))
+    uid = store.create_user("quota@b.com", "password123")
+    limit = 2
+
+    # First two charges pass.
+    store.check_and_charge(uid, "job-1", limit=limit)
+    store.check_and_charge(uid, "job-2", limit=limit)
+    assert store.usage_today(uid) == 2
+
+    # Third is rejected.
+    try:
+        store.check_and_charge(uid, "job-3", limit=limit)
+        assert False, "quota should be exceeded"
+    except auth.QuotaExceeded:
+        pass
+
+    # Recording the same job again is idempotent (no double-charge).
+    store.record_usage(uid, "job-2")
+    assert store.usage_today(uid) == 2

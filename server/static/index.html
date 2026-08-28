@@ -6,6 +6,7 @@
   <title>BindForge · 无界生物 — 蛋白结合剂设计平台</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Roboto+Mono:wght@400&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/ngl@2.0.0-dev.39/dist/ngl.js"></script>
   <style>
     :root {
       --navy: #1B3A5C;         /* 主色 deep navy */
@@ -126,6 +127,15 @@
     .small { font-size: .8rem; color: var(--ink-3); }
     .lang-sw { background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .8rem;
                cursor: pointer; font: inherit; font-size: .8rem; color: var(--ink-2); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(10,22,40,.7); z-index: 200;
+                     display: flex; align-items: center; justify-content: center; padding: 2rem; }
+    .modal { background: #fff; border-radius: var(--radius-lg); width: min(860px, 100%);
+             box-shadow: var(--shadow-hover); overflow: hidden; }
+    .modal-head { display: flex; align-items: center; justify-content: space-between;
+                  padding: .8rem 1.2rem; border-bottom: 1px solid var(--border); }
+    .modal-head h3 { margin: 0; color: var(--navy); font-size: 1rem; }
+    .modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--ink-2); }
+    #viewport { width: 100%; height: 480px; background: #0A1628; }
   </style>
 </head>
 <body>
@@ -136,6 +146,7 @@
         <span><span class="name">BindForge</span><br /><span class="sub">无界生物 · 蛋白结合剂设计</span></span>
       </a>
       <div class="hdr-actions">
+        <span class="pill pill-gold hidden" id="quotaChip">今日免费任务 0/2</span>
         <span class="user-chip hidden" id="userChip"></span>
         <button class="lang-sw" id="langBtn" title="切换语言 / Switch language">中 / EN</button>
         <button class="btn btn-ghost hidden" id="logoutBtn" style="padding:.4rem 1.1rem">退出</button>
@@ -183,6 +194,9 @@
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input id="dry_run" type="checkbox" checked style="width:auto" /> Dry-run（mock 服务，无需 API Key，用于流程测试）
       </label>
+      <div class="hint" style="margin-top:.5rem">
+        ⚖️ 靶点 ≤ 500 aa；每个账号每日 <b>2 个免费任务</b>，超出需付费（即将上线）。
+      </div>
       <button class="btn btn-gold" id="submit" style="margin-top:1.1rem">▶ 运行流程 / Run pipeline</button>
     </div>
 
@@ -200,7 +214,7 @@
       <table id="results">
         <thead><tr>
           <th>#</th><th>结合剂</th><th>长度</th><th>综合分</th><th>置信度</th><th>MD</th>
-          <th>ipTM</th><th>RMSD(nm)</th><th>接触保留</th><th>ΔG</th><th>序列</th>
+          <th>ipTM</th><th>RMSD(nm)</th><th>接触保留</th><th>ΔG</th><th>序列</th><th>3D</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -236,6 +250,20 @@
     </div>
   </div>
 
+  <!-- ─── 3D viewer modal ─── -->
+  <div class="modal-overlay hidden" id="viewerOverlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="viewerTitle">复合物结构 / Complex</h3>
+        <button class="modal-close" id="viewerClose" title="关闭">×</button>
+      </div>
+      <div id="viewport"></div>
+      <div class="modal-head" style="border-top:1px solid var(--border);border-bottom:0;padding:.5rem 1.2rem">
+        <span class="small" id="viewerHint">拖拽旋转 · 滚轮缩放 · 右键平移</span>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const I18N = {
@@ -254,7 +282,9 @@
     async function api(path, opts = {}) {
       const r = await fetch(path, opts);
       if (r.status === 401) { showAuth(); throw new Error('unauthorized'); }
-      return r.json();
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const e = new Error(j.detail || ('HTTP ' + r.status)); e.detail = j.detail; e.status = r.status; throw e; }
+      return j;
     }
 
     // ── auth UI ──
@@ -263,7 +293,15 @@
     function showApp() { $('authView').classList.add('hidden'); $('appView').classList.remove('hidden'); $('logoutBtn').classList.remove('hidden'); }
 
     async function loadMe() {
-      try { const u = await api('/api/me'); $('userChip').textContent = u.email || ''; $('userChip').classList.remove('hidden'); showApp(); refreshJobs(); }
+      try {
+        const u = await api('/api/me');
+        $('userChip').textContent = u.email || ''; $('userChip').classList.remove('hidden');
+        if (u.quota) {
+          $('quotaChip').textContent = `今日免费任务 ${u.quota.used_today}/${u.quota.daily_limit}`;
+          $('quotaChip').classList.remove('hidden');
+        }
+        showApp(); refreshJobs();
+      }
       catch (e) { showAuth(); }
     }
 
@@ -297,20 +335,29 @@
         md_ns: parseFloat($('md_ns').value) || 5.0,
         dry_run: $('dry_run').checked,
       };
-      let j;
-      if (file) {
-        const fd = new FormData();
-        fd.append('file', file);
-        for (const [k, v] of Object.entries(params)) fd.append(k, v);
-        j = await api('/api/upload', { method: 'POST', body: fd });
-      } else {
-        const seq = $('target').value.trim();
-        if (!seq) { alert('请上传结构文件，或粘贴靶点序列 / Upload a file or paste a target sequence.'); return; }
-        j = await api('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ target: seq, ...params }) });
+      try {
+        let j;
+        if (file) {
+          const fd = new FormData();
+          fd.append('file', file);
+          for (const [k, v] of Object.entries(params)) fd.append(k, v);
+          j = await api('/api/upload', { method: 'POST', body: fd });
+        } else {
+          const seq = $('target').value.trim();
+          if (!seq) { alert('请上传结构文件，或粘贴靶点序列 / Upload a file or paste a target sequence.'); return; }
+          j = await api('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ target: seq, ...params }) });
+        }
+        if (j.id) pollJob(j.id);
+      } catch (e) {
+        $('resultsCard').classList.remove('hidden');
+        $('resultJobId').textContent = '—';
+        $('error').innerHTML = `<div class="err">${escapeHtml(e.detail || e.message || '提交失败 / submission failed')}</div>`;
+        loadMe(); // refresh quota chip (a 429 means the limit is now hit)
       }
-      if (j.id) pollJob(j.id);
     }
+
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
     async function pollJob(id) {
       const j = await api('/api/jobs/' + id);
@@ -351,19 +398,49 @@
       for (const row of (j.result || [])) {
         const tr = document.createElement('tr');
         const md = row.validated ? `<span class="val-yes">✓</span>` : `<span class="val-no">—</span>`;
+        const view = row.binder_id
+          ? `<button class="btn btn-ghost" style="padding:.2rem .7rem;font-size:.75rem" onclick="viewStructure('${id}','${row.binder_id}')">3D</button>`
+          : '<span class="small">—</span>';
         tr.innerHTML = `<td>${row.rank}</td><td class="mono">${row.binder_id}</td>
           <td>${row.length}</td><td>${fmt(row.score)}</td><td>${fmt(row.confidence)}</td>
           <td>${md}</td><td>${fmt(row.ipTM, 2)}</td><td>${fmt(row.md_rmsd_mean, 2)}</td>
           <td>${pct(row.md_contact_retention)}</td><td>${fmt(row.md_dG, 1)}</td>
-          <td class="mono">${row.sequence}</td>`;
+          <td class="mono">${row.sequence}</td>
+          <td>${view}</td>`;
         tbody.appendChild(tr);
       }
+    }
+
+    // ── 3D structure viewer (NGL) ──
+    let _stage = null;
+    function openViewer() { $('viewerOverlay').classList.remove('hidden'); if (!_stage) initStage(); }
+    function closeViewer() { $('viewerOverlay').classList.add('hidden'); }
+
+    function initStage() {
+      if (typeof NGL === 'undefined') return;
+      _stage = new NGL.Stage('viewport', { backgroundColor: '#0A1628' });
+      _stage.setParameters({ clipNear: 0, clipFar: 100, fogNear: 40, fogFar: 80 });
+      window.addEventListener('resize', () => _stage.handleResize(), { passive: true });
+    }
+
+    function viewStructure(jobId, binderId) {
+      openViewer();
+      $('viewerTitle').textContent = `复合物结构 — ${binderId}`;
+      if (!_stage) { $('viewerHint').textContent = 'NGL 库加载失败（需联网加载 CDN）/ NGL failed to load (CDN requires internet)'; return; }
+      const url = `/api/jobs/${jobId}/structure/${binderId}.pdb`;
+      _stage.removeAllComponents();
+      $('viewerHint').textContent = '加载中 / loading…';
+      _stage.loadFile(url, { defaultRepresentation: true })
+        .then((comp) => { comp.autoView(); $('viewerHint').textContent = '拖拽旋转 · 滚轮缩放 · 右键平移'; })
+        .catch((err) => { $('viewerHint').textContent = '结构加载失败 / failed to load: ' + (err && err.message ? err.message : 'not found'); });
     }
 
     // ── wiring ──
     $('submit').onclick = submitJob;
     $('authBtn').onclick = doAuth;
     $('logoutBtn').onclick = doLogout;
+    $('viewerClose').onclick = closeViewer;
+    $('viewerOverlay').onclick = (e) => { if (e.target === $('viewerOverlay')) closeViewer(); };
     $('tabLogin').onclick = () => setAuthMode('login');
     $('tabRegister').onclick = () => setAuthMode('register');
     $('langBtn').onclick = () => { lang = lang === 'zh' ? 'en' : 'zh'; localStorage.setItem('bf_lang', lang); applyLang(); };
