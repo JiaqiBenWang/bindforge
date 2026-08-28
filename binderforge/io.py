@@ -301,7 +301,8 @@ def _closest_approach(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def build_complex_pdb(target_pdb: str, binder_seq: str, out_path: str,
-                      binder_chain: str = "B", contact_distance: float = 3.4) -> str:
+                      binder_chain: str = "B", target_chain: str = "A",
+                      contact_distance: float = 3.4) -> str:
     """Combine a target (from `target_pdb`) + a built binder into one complex PDB.
 
     The binder is laid alongside the target (long axes aligned), spun about that
@@ -318,6 +319,13 @@ def build_complex_pdb(target_pdb: str, binder_seq: str, out_path: str,
     """
     target_atoms = parse_pdb(target_pdb)
     binder_atoms = build_peptide_pdb(binder_seq)
+    # Canonicalise chain labels: the downstream MD stage hardcodes the target as
+    # chain "A" and the binder as chain "B", so relabel whatever the input PDB
+    # used (real structures often use "B"/"C"/… or multi-letter IDs) onto that
+    # convention — otherwise a target already on chain "B" collides with the
+    # binder and the MD stage finds no chain-A CA atoms.
+    for a in target_atoms:
+        a["chain"] = target_chain
     for a in binder_atoms:
         a["chain"] = binder_chain
 

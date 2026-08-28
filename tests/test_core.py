@@ -48,6 +48,23 @@ def test_build_complex_pdb_makes_an_interface(tmp_path):
     assert d.min() > 2.0  # but not clashing through each other
 
 
+def test_build_complex_canonicalises_chain_labels(tmp_path):
+    # Real PDBs use arbitrary chain IDs (here "B"); the complex must still map
+    # target -> "A" and binder -> "B" so the MD stage's hardcoded A/B lookup works.
+    target = tmp_path / "target_chainB.pdb"
+    io.build_peptide_pdb("MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP", str(target), chain="B")
+    out = tmp_path / "complex.pdb"
+    io.build_complex_pdb(str(target), "ACDEFGHIKLMNPQRSTVWY", str(out))
+
+    ca = {}
+    for a in io.parse_pdb(str(out)):
+        if a["name"] == "CA":
+            ca[a["chain"]] = ca.get(a["chain"], 0) + 1
+    assert set(ca) == {"A", "B"}
+    assert ca["A"] == 37   # the target sequence length
+    assert ca["B"] == 20   # the binder sequence length
+
+
 def test_ca_rmsd():
     ref = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
     assert metrics.ca_rmsd(ref, ref) == 0.0
