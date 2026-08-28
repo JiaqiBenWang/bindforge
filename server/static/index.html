@@ -3,89 +3,131 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BindForge · 无界生物 — 蛋白结合剂设计平台</title>
+  <title>BindForge · 无界计算生物科技 — 蛋白结合剂设计平台</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Roboto+Mono:wght@400&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://unpkg.com/ngl@2.0.0-dev.39/dist/ngl.js"></script>
   <style>
     :root {
       --navy: #1B3A5C;         /* 主色 deep navy */
       --navy-2: #2C5F8A;       /* 次级蓝 */
       --deep: #0A1628;         /* 深海军蓝 */
+      --surface-navy: #0F1F35;
       --gold: #C8963E;         /* 品牌金 */
       --gold-2: #B8862E;
-      --bg: #F4F6FA;
+      --bg: #F5F7FA;
       --bg-card: #FFFFFF;
       --cream: #FAF7F2;
-      --border: #E2E6ED;
-      --ink: #1A1A2E;
-      --ink-2: #5A6070;
-      --ink-3: #8B93A0;
-      --on-dark: #CCD5E0;
-      --ok: #3C8C5A;
+      --border: #E4E8EF;
+      --ink: #16202E;
+      --ink-2: #55606E;
+      --ink-3: #8A93A2;
+      --on-dark: #C9D4E2;
+      --ok: #2E8B57;
       --warn: #B8862E;
       --err: #C0504D;
       --radius: 12px;
-      --radius-lg: 24px;
-      --shadow: 0 4px 24px rgba(45,45,45,0.06);
-      --shadow-hover: 0 8px 40px rgba(27,58,92,0.12);
+      --radius-lg: 18px;
+      --shadow: 0 1px 2px rgba(16,32,46,.04), 0 6px 24px rgba(16,32,46,.07);
+      --shadow-hover: 0 2px 6px rgba(16,32,46,.06), 0 14px 40px rgba(27,58,92,.16);
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
-      margin: 0; font-family: 'Noto Sans SC', system-ui, -apple-system, "Segoe UI", sans-serif;
-      background: var(--bg); color: var(--ink); line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
+      margin: 0; font-family: 'Noto Sans SC', system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: var(--bg); color: var(--ink); line-height: 1.65;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1;
     }
-    a { color: var(--navy-2); }
+    a { color: var(--navy-2); text-decoration: none; }
+    ::selection { background: rgba(200,150,62,.25); }
 
     /* ── header ── */
     header {
-      position: sticky; top: 0; z-index: 50; background: #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.94);
+      backdrop-filter: saturate(180%) blur(10px);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 0 rgba(16,32,46,.03);
     }
-    .hdr { max-width: 1200px; margin: 0 auto; padding: 12px 24px;
+    header::before { content:""; display:block; height:3px;
+      background: linear-gradient(90deg, var(--navy) 0%, var(--navy-2) 35%, var(--gold) 100%); }
+    .hdr { max-width: 1200px; margin: 0 auto; padding: 10px 24px;
            display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
-    .brand .mark { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--navy), var(--navy-2));
-                   color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; }
-    .brand .name { font-size: 18px; font-weight: 700; color: var(--navy); letter-spacing: .5px; }
-    .brand .sub { font-size: 11px; color: var(--ink-3); letter-spacing: 2px; }
+    .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; }
+    .brand-logo { height: 38px; width: auto; display: block; }
+    .brand-sep { width: 1px; height: 34px; background: var(--border); }
+    .brand-name { display: flex; flex-direction: column; line-height: 1.25; }
+    .brand-name .name { font-size: 17px; font-weight: 700; color: var(--navy); letter-spacing: .3px; }
+    .brand-name .sub { font-size: 11px; color: var(--ink-3); letter-spacing: 1.5px; }
     .hdr-actions { display: flex; align-items: center; gap: 12px; }
     .user-chip { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
 
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-    h1 { font-size: 1.8rem; margin: .25rem 0 .25rem; color: var(--navy); }
-    .subtitle { color: var(--ink-2); margin: 0 0 1.75rem; }
-    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
-            padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: var(--shadow); }
-    .card h2 { margin: 0 0 .75rem; font-size: 1.15rem; color: var(--navy); }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.5rem 4rem; }
 
-    label { display: block; font-size: .85rem; color: var(--ink-2); margin: .8rem 0 .3rem; }
+    /* ── hero ── */
+    .hero { position: relative; overflow: hidden; color: #fff; margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, #0A1628 0%, #12304F 55%, #1B3A5C 100%);
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+    .hero::before { content:""; position:absolute; inset:0; pointer-events:none;
+      background:
+        radial-gradient(circle at 82% 18%, rgba(200,150,62,.22), transparent 42%),
+        radial-gradient(circle at 12% 85%, rgba(44,95,138,.35), transparent 50%);
+    }
+    .hero-inner { position: relative; max-width: 1080px; margin: 0 auto; padding: 3rem 2.25rem 2.6rem; }
+    .eyebrow { display:inline-block; font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase;
+               color: var(--gold); font-weight: 600; margin-bottom: .9rem; }
+    .hero h1 { margin: 0; font-size: 2.9rem; line-height: 1.05; font-weight: 700; letter-spacing: -.5px; }
+    .hero h1 .dot { color: var(--gold); }
+    .hero .lead { max-width: 640px; margin: 1rem 0 0; color: var(--on-dark); font-size: 1.05rem; font-weight: 300; }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 1.4rem; }
+    .hero-tags .tag { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem;
+      padding: .4rem .9rem; border-radius: 999px; background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.14); color: #E7EEF5; }
+    .hero-tags .tag b { color: var(--gold); font-weight: 600; }
+
+    h2.section-title { font-size: 1.05rem; color: var(--navy); font-weight: 600; letter-spacing: .3px; }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 1.6rem 1.6rem 1.7rem; margin-bottom: 1.25rem; box-shadow: var(--shadow); }
+    .card h2 { margin: 0 0 .9rem; font-size: 1.06rem; color: var(--navy); font-weight: 600;
+               display: flex; align-items: center; gap: 10px; }
+    .card h2::before { content:""; width: 4px; height: 18px; border-radius: 2px;
+               background: linear-gradient(180deg, var(--gold), var(--gold-2)); }
+
+    label { display: block; font-size: .84rem; color: var(--ink-2); margin: .85rem 0 .3rem; font-weight: 500; }
     input[type=text], input[type=email], input[type=password], input[type=number], textarea {
-      width: 100%; padding: .65rem .8rem; border-radius: 10px; border: 1.5px solid var(--border);
+      width: 100%; padding: .68rem .85rem; border-radius: 10px; border: 1.5px solid var(--border);
       background: #fff; color: var(--ink); font: inherit; transition: border-color .15s, box-shadow .15s;
     }
-    input:focus, textarea:focus { outline: none; border-color: var(--navy-2); box-shadow: 0 0 0 3px rgba(44,95,138,.12); }
-    textarea { min-height: 74px; resize: vertical; font-family: 'Roboto Mono', monospace; font-size: .85rem; }
-    input[type=file] { width: 100%; padding: .6rem; border: 1.5px dashed var(--border); border-radius: 10px; background: var(--cream); cursor: pointer; }
+    input:hover, textarea:hover { border-color: #CBD4DE; }
+    input:focus, textarea:focus { outline: none; border-color: var(--navy-2);
+      box-shadow: 0 0 0 3px rgba(44,95,138,.14); }
+    textarea { min-height: 76px; resize: vertical; font-family: 'Roboto Mono', monospace; font-size: .85rem; }
+    input[type=file] { width: 100%; padding: .7rem; border: 1.5px dashed #C9D2DC; border-radius: 10px;
+      background: var(--cream); cursor: pointer; }
+    input[type=file]:hover { border-color: var(--navy-2); background: #fff; }
     .row { display: flex; gap: 1rem; flex-wrap: wrap; }
     .row > div { flex: 1; min-width: 130px; }
-    .hint { color: var(--ink-3); font-size: .8rem; margin: .3rem 0 0; }
+    .hint { color: var(--ink-3); font-size: .8rem; margin: .35rem 0 0; }
 
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-           padding: .7rem 1.6rem; border: 0; border-radius: 999px; cursor: pointer;
-           font: inherit; font-weight: 600; letter-spacing: 1px; transition: filter .15s, transform .05s;
+           padding: .72rem 1.6rem; border: 0; border-radius: 999px; cursor: pointer;
+           font: inherit; font-weight: 600; letter-spacing: .5px; transition: filter .15s, transform .05s, box-shadow .15s;
            text-decoration: none; }
-    .btn-primary { background: var(--navy); color: #fff; }
-    .btn-gold { background: var(--gold); color: #fff; }
-    .btn-ghost { background: transparent; color: var(--navy); border: 1.5px solid var(--navy); }
-    .btn:hover { filter: brightness(1.08); }
+    .btn-primary { background: linear-gradient(135deg, var(--navy), var(--navy-2)); color: #fff;
+                   box-shadow: 0 4px 14px rgba(27,58,92,.22); }
+    .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-2)); color: #fff;
+                box-shadow: 0 4px 14px rgba(200,150,62,.28); }
+    .btn-ghost { background: transparent; color: var(--navy); border: 1.5px solid #C6D2DF; }
+    .btn:hover { filter: brightness(1.06); box-shadow: 0 6px 18px rgba(16,32,46,.18); }
     .btn:active { transform: translateY(1px); }
-    .btn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; filter: none; box-shadow: none; }
 
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--border); }
-    th { color: var(--ink-2); font-weight: 600; background: var(--cream); }
+    th, td { text-align: left; padding: .6rem .65rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--ink-2); font-weight: 600; background: #F0F4F9; letter-spacing: .2px; }
+    th:first-child { border-radius: 8px 0 0 8px; } th:last-child { border-radius: 0 8px 8px 0; }
     tr:hover td { background: #FAFBFC; }
     .mono { font-family: 'Roboto Mono', monospace; font-size: .78rem; word-break: break-all; }
     .status { font-weight: 600; }
@@ -93,41 +135,55 @@
     .status.failed { color: var(--err); }
     .err { color: var(--err); white-space: pre-wrap; background: #FBEEEE; border: 1px solid #F0C9C9;
            border-radius: 10px; padding: .7rem .9rem; margin-top: .5rem; }
-    .log { background: var(--deep); color: #B9D6EF; border-radius: 10px; padding: .7rem .9rem;
-           font-family: 'Roboto Mono', monospace; font-size: .74rem; max-height: 180px; overflow: auto;
-           white-space: pre-wrap; margin-top: .75rem; }
+    .log { background: var(--deep); color: #A9CBE8; border-radius: 10px; padding: .8rem .95rem;
+           font-family: 'Roboto Mono', monospace; font-size: .74rem; max-height: 200px; overflow: auto;
+           white-space: pre-wrap; margin-top: .75rem; line-height: 1.55; }
+    .log::-webkit-scrollbar { width: 8px; } .log::-webkit-scrollbar-thumb { background: #2C3E50; border-radius: 4px; }
     .val-yes { color: var(--ok); font-weight: 600; } .val-no { color: var(--ink-3); }
 
-    .pill { display: inline-block; padding: .1rem .6rem; border-radius: 999px; font-size: .75rem; }
+    .pill { display: inline-block; padding: .12rem .62rem; border-radius: 999px; font-size: .75rem; font-weight: 500; }
     .pill-navy { background: rgba(27,58,92,.08); color: var(--navy); }
-    .pill-gold { background: rgba(200,150,62,.14); color: #8a6a2c; }
+    .pill-gold { background: rgba(200,150,62,.16); color: #8a6a2c; }
 
-    .stage { display: flex; gap: 8px; flex-wrap: wrap; margin: .5rem 0 0; }
-    .stage .s { flex: 1; min-width: 150px; border: 1px solid var(--border); border-radius: 12px; padding: .7rem .8rem; }
+    .stage { display: flex; gap: 10px; flex-wrap: wrap; margin: .5rem 0 0; }
+    .stage .s { flex: 1; min-width: 150px; border: 1px solid var(--border); border-radius: 12px;
+                padding: .8rem .9rem; background: #FBFCFE; transition: box-shadow .15s, transform .15s; }
+    .stage .s:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
     .stage .s b { color: var(--navy); }
     .stage .s span { color: var(--ink-2); font-size: .8rem; }
 
     .note-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    .note-table th, .note-table td { border: 1px solid var(--border); padding: .55rem .7rem; text-align: left; }
-    .note-table th { background: var(--cream); color: var(--ink-2); }
+    .note-table th, .note-table td { border: 1px solid var(--border); padding: .6rem .75rem; text-align: left; vertical-align: top; }
+    .note-table th { background: var(--cream); color: var(--ink-2); width: 150px; }
 
     /* auth view */
     .auth-wrap { max-width: 420px; margin: 3rem auto; padding: 0 1.25rem; }
     .auth-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
-                 padding: 2rem 1.75rem; box-shadow: var(--shadow); }
-    .auth-card .brand { justify-content: center; margin-bottom: .5rem; }
-    .auth-card h2 { text-align: center; color: var(--navy); margin: .5rem 0 .25rem; }
-    .auth-card .sub { text-align: center; color: var(--ink-3); margin: 0 0 1.25rem; }
-    .auth-tabs { display: flex; gap: 8px; margin-bottom: 1rem; }
-    .auth-tabs button { flex: 1; padding: .55rem; border-radius: 999px; border: 1.5px solid var(--border);
-                        background: #fff; cursor: pointer; font: inherit; font-weight: 600; color: var(--ink-2); }
-    .auth-tabs button.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+                 padding: 2rem 1.9rem 2.1rem; box-shadow: var(--shadow-hover); }
+    .auth-brand { display: flex; justify-content: center; margin-bottom: 1rem; }
+    .auth-brand .brand-logo { height: 56px; }
+    .auth-card h2 { text-align: center; color: var(--navy); margin: .25rem 0 .2rem; font-size: 1.25rem; }
+    .auth-card .sub { text-align: center; color: var(--ink-3); margin: 0 0 1.25rem; font-size: .9rem; }
+    .auth-tabs { display: flex; gap: 8px; margin-bottom: 1.1rem; background: var(--bg); padding: 4px; border-radius: 999px; }
+    .auth-tabs button { flex: 1; padding: .55rem; border-radius: 999px; border: 0;
+                        background: transparent; cursor: pointer; font: inherit; font-weight: 600; color: var(--ink-2); }
+    .auth-tabs button.active { background: var(--navy); color: #fff; box-shadow: 0 3px 10px rgba(27,58,92,.25); }
     .auth-msg { color: var(--err); font-size: .85rem; min-height: 1.2rem; margin: .4rem 0; }
     .hidden { display: none !important; }
     .small { font-size: .8rem; color: var(--ink-3); }
-    .lang-sw { background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .8rem;
+    .lang-sw { background: none; border: 1px solid var(--border); border-radius: 999px; padding: .32rem .85rem;
                cursor: pointer; font: inherit; font-size: .8rem; color: var(--ink-2); }
-    .modal-overlay { position: fixed; inset: 0; background: rgba(10,22,40,.7); z-index: 200;
+    .lang-sw:hover { border-color: var(--navy-2); color: var(--navy); }
+
+    /* footer */
+    footer { border-top: 1px solid var(--border); background: #fff; margin-top: 2rem; }
+    .foot { max-width: 1080px; margin: 0 auto; padding: 1.6rem 1.5rem 1.9rem; display: flex;
+            align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .foot .brand-logo { height: 30px; opacity: .9; }
+    .foot .legal { color: var(--ink-3); font-size: .78rem; text-align: right; line-height: 1.7; }
+
+    /* modal / 3D viewer */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(10,22,40,.72); z-index: 200;
                      display: flex; align-items: center; justify-content: center; padding: 2rem; }
     .modal { background: #fff; border-radius: var(--radius-lg); width: min(860px, 100%);
              box-shadow: var(--shadow-hover); overflow: hidden; }
@@ -135,21 +191,34 @@
                   padding: .8rem 1.2rem; border-bottom: 1px solid var(--border); }
     .modal-head h3 { margin: 0; color: var(--navy); font-size: 1rem; }
     .modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--ink-2); }
-    #viewport { width: 100%; height: 480px; background: #0A1628; }
+    .modal-close:hover { color: var(--err); }
+    #viewport { width: 100%; height: 500px; background: #0A1628; }
+
+    @media (max-width: 640px) {
+      .brand-sep, .brand-name .sub { display: none; }
+      .brand-logo { height: 30px; }
+      .hero h1 { font-size: 2.1rem; }
+      .hero-inner { padding: 2.2rem 1.4rem 2rem; }
+      .hdr { padding: 8px 16px; }
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="hdr">
       <a class="brand" href="/">
-        <span class="mark">B</span>
-        <span><span class="name">BindForge</span><br /><span class="sub">无界生物 · 蛋白结合剂设计</span></span>
+        <img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" />
+        <span class="brand-sep"></span>
+        <span class="brand-name">
+          <span class="name">BindForge</span>
+          <span class="sub">蛋白结合剂设计平台</span>
+        </span>
       </a>
       <div class="hdr-actions">
         <span class="pill pill-gold hidden" id="quotaChip">今日免费任务 0/2</span>
         <span class="user-chip hidden" id="userChip"></span>
         <button class="lang-sw" id="langBtn" title="切换语言 / Switch language">中 / EN</button>
-        <button class="btn btn-ghost hidden" id="logoutBtn" style="padding:.4rem 1.1rem">退出</button>
+        <button class="btn btn-ghost hidden" id="logoutBtn" style="padding:.42rem 1.1rem">退出</button>
       </div>
     </div>
   </header>
@@ -157,7 +226,7 @@
   <!-- ─── AUTH VIEW ─── -->
   <div class="auth-wrap hidden" id="authView">
     <div class="auth-card">
-      <div class="brand"><span class="mark">B</span><span class="name">BindForge</span></div>
+      <div class="auth-brand"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></div>
       <h2 id="authTitle">登录平台</h2>
       <div class="sub" id="authSub">登录后使用蛋白结合剂设计工具</div>
       <div class="auth-tabs">
@@ -176,8 +245,18 @@
 
   <!-- ─── APP VIEW ─── -->
   <div class="wrap hidden" id="appView">
-    <h1>BindForge</h1>
-    <p class="subtitle">蛋白结合剂 <b>序列设计 → 结构预测（Boltz-2 / Chai-1）→ MD 稳定性验证</b> 一体化流程，云端 API 计算，无需本地 GPU。</p>
+    <div class="hero">
+      <div class="hero-inner">
+        <span class="eyebrow">UniBindMD 无界计算生物科技</span>
+        <h1>BindForge<span class="dot">.</span></h1>
+        <p class="lead">蛋白结合剂 <b style="font-weight:500;color:#fff">序列设计 → 结构预测（Boltz-2 / Chai-1）→ MD 稳定性验证</b> 一体化流程，云端 API 计算，无需本地 GPU。</p>
+        <div class="hero-tags">
+          <span class="tag"><b>01</b> de novo 序列设计</span>
+          <span class="tag"><b>02</b> 开源 AlphaFold3 替代预测</span>
+          <span class="tag"><b>03</b> OpenMM MD 稳定性验证</span>
+        </div>
+      </div>
+    </div>
 
     <div class="card">
       <h2>① 提交任务 / Submit</h2>
@@ -248,6 +327,16 @@
       </table>
       <div class="hint" style="margin-top:.5rem">具体上限依所连接的在线服务（NVIDIA NIM / boltz.bio / Chai）与算力而异。</div>
     </div>
+
+    <footer>
+      <div class="foot">
+        <img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" />
+        <div class="legal">
+          © 2026 深圳市无界计算生物科技有限公司 · UniBindMD Biotech<br />
+          BindForge · 蛋白结合剂设计平台 &nbsp;|&nbsp; 粤ICP备2026102804号
+        </div>
+      </div>
+    </footer>
   </div>
 
   <!-- ─── 3D viewer modal ─── -->
