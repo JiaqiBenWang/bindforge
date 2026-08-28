@@ -3,18 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BindForge · 无界计算生物科技 — 蛋白结合剂设计平台</title>
+  <title>BindForge 蛋白结合剂设计平台</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://unpkg.com/ngl@2.0.0-dev.39/dist/ngl.js"></script>
   <style>
     :root {
       --navy: #1B3A5C;         /* 主色 deep navy */
       --navy-2: #2C5F8A;       /* 次级蓝 */
       --deep: #0A1628;         /* 深海军蓝 */
-      --surface-navy: #0F1F35;
       --gold: #C8963E;         /* 品牌金 */
       --gold-2: #B8862E;
       --bg: #F5F7FA;
@@ -36,18 +32,23 @@
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
-      margin: 0; font-family: 'Noto Sans SC', system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                   "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
+                   "Helvetica Neue", Arial, sans-serif;
       background: var(--bg); color: var(--ink); line-height: 1.65;
       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
-      font-feature-settings: "kern" 1;
     }
     a { color: var(--navy-2); text-decoration: none; }
     ::selection { background: rgba(200,150,62,.25); }
+    .mono, textarea, .log, code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+                   "Liberation Mono", "Courier New", monospace;
+    }
 
     /* ── header ── */
     header {
-      position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.94);
-      backdrop-filter: saturate(180%) blur(10px);
+      position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.96);
       border-bottom: 1px solid var(--border);
       box-shadow: 0 1px 0 rgba(16,32,46,.03);
     }
@@ -58,9 +59,9 @@
     .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; }
     .brand-logo { height: 38px; width: auto; display: block; }
     .brand-sep { width: 1px; height: 34px; background: var(--border); }
-    .brand-name { display: flex; flex-direction: column; line-height: 1.25; }
-    .brand-name .name { font-size: 17px; font-weight: 700; color: var(--navy); letter-spacing: .3px; }
-    .brand-name .sub { font-size: 11px; color: var(--ink-3); letter-spacing: 1.5px; }
+    .brand-name { display: flex; flex-direction: column; line-height: 1.3; }
+    .brand-name .name { font-size: 17px; font-weight: 700; color: var(--navy); }
+    .brand-name .sub { font-size: 11px; color: var(--ink-3); }
     .hdr-actions { display: flex; align-items: center; gap: 12px; }
     .user-chip { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
 
@@ -76,24 +77,29 @@
         radial-gradient(circle at 12% 85%, rgba(44,95,138,.35), transparent 50%);
     }
     .hero-inner { position: relative; max-width: 1080px; margin: 0 auto; padding: 3rem 2.25rem 2.6rem; }
-    .eyebrow { display:inline-block; font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase;
+    .eyebrow { display: inline-block; font-size: 12px; letter-spacing: 1px;
                color: var(--gold); font-weight: 600; margin-bottom: .9rem; }
     .hero h1 { margin: 0; font-size: 2.9rem; line-height: 1.05; font-weight: 700; letter-spacing: -.5px; }
     .hero h1 .dot { color: var(--gold); }
-    .hero .lead { max-width: 640px; margin: 1rem 0 0; color: var(--on-dark); font-size: 1.05rem; font-weight: 300; }
+    .hero .lead { max-width: 660px; margin: 1rem 0 0; color: var(--on-dark); font-size: 1.05rem; font-weight: 300; }
     .hero-tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 1.4rem; }
-    .hero-tags .tag { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem;
+    .hero-tags .tag { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem;
       padding: .4rem .9rem; border-radius: 999px; background: rgba(255,255,255,.08);
       border: 1px solid rgba(255,255,255,.14); color: #E7EEF5; }
     .hero-tags .tag b { color: var(--gold); font-weight: 600; }
 
-    h2.section-title { font-size: 1.05rem; color: var(--navy); font-weight: 600; letter-spacing: .3px; }
     .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
             padding: 1.6rem 1.6rem 1.7rem; margin-bottom: 1.25rem; box-shadow: var(--shadow); }
     .card h2 { margin: 0 0 .9rem; font-size: 1.06rem; color: var(--navy); font-weight: 600;
                display: flex; align-items: center; gap: 10px; }
-    .card h2::before { content:""; width: 4px; height: 18px; border-radius: 2px;
-               background: linear-gradient(180deg, var(--gold), var(--gold-2)); }
+    .step { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--navy), var(--navy-2));
+            color: #fff; font-size: .85rem; font-weight: 700; box-shadow: 0 2px 6px rgba(27,58,92,.22); }
+    .card-info h2::before { content:""; width: 4px; height: 18px; border-radius: 2px;
+            background: linear-gradient(180deg, var(--gold), var(--gold-2)); }
+    .result-jobid { font-size: .7rem; color: var(--ink-3); background: var(--bg);
+                    padding: .12rem .55rem; border-radius: 6px; border: 1px solid var(--border); }
+    .result-jobid:empty { display: none; }
 
     label { display: block; font-size: .84rem; color: var(--ink-2); margin: .85rem 0 .3rem; font-weight: 500; }
     input[type=text], input[type=email], input[type=password], input[type=number], textarea {
@@ -103,7 +109,7 @@
     input:hover, textarea:hover { border-color: #CBD4DE; }
     input:focus, textarea:focus { outline: none; border-color: var(--navy-2);
       box-shadow: 0 0 0 3px rgba(44,95,138,.14); }
-    textarea { min-height: 76px; resize: vertical; font-family: 'Roboto Mono', monospace; font-size: .85rem; }
+    textarea { min-height: 76px; resize: vertical; font-size: .85rem; }
     input[type=file] { width: 100%; padding: .7rem; border: 1.5px dashed #C9D2DC; border-radius: 10px;
       background: var(--cream); cursor: pointer; }
     input[type=file]:hover { border-color: var(--navy-2); background: #fff; }
@@ -113,7 +119,7 @@
 
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
            padding: .72rem 1.6rem; border: 0; border-radius: 999px; cursor: pointer;
-           font: inherit; font-weight: 600; letter-spacing: .5px; transition: filter .15s, transform .05s, box-shadow .15s;
+           font: inherit; font-weight: 600; letter-spacing: .3px; transition: filter .15s, transform .05s, box-shadow .15s;
            text-decoration: none; }
     .btn-primary { background: linear-gradient(135deg, var(--navy), var(--navy-2)); color: #fff;
                    box-shadow: 0 4px 14px rgba(27,58,92,.22); }
@@ -126,31 +132,43 @@
 
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     th, td { text-align: left; padding: .6rem .65rem; border-bottom: 1px solid var(--border); }
-    th { color: var(--ink-2); font-weight: 600; background: #F0F4F9; letter-spacing: .2px; }
+    th { color: var(--ink-2); font-weight: 600; background: #F0F4F9; }
     th:first-child { border-radius: 8px 0 0 8px; } th:last-child { border-radius: 0 8px 8px 0; }
     tr:hover td { background: #FAFBFC; }
-    .mono { font-family: 'Roboto Mono', monospace; font-size: .78rem; word-break: break-all; }
+    .mono { font-size: .78rem; word-break: break-all; }
     .status { font-weight: 600; }
     .status.done { color: var(--ok); } .status.running, .status.queued { color: var(--warn); }
     .status.failed { color: var(--err); }
     .err { color: var(--err); white-space: pre-wrap; background: #FBEEEE; border: 1px solid #F0C9C9;
            border-radius: 10px; padding: .7rem .9rem; margin-top: .5rem; }
     .log { background: var(--deep); color: #A9CBE8; border-radius: 10px; padding: .8rem .95rem;
-           font-family: 'Roboto Mono', monospace; font-size: .74rem; max-height: 200px; overflow: auto;
+           font-size: .74rem; max-height: 200px; overflow: auto;
            white-space: pre-wrap; margin-top: .75rem; line-height: 1.55; }
     .log::-webkit-scrollbar { width: 8px; } .log::-webkit-scrollbar-thumb { background: #2C3E50; border-radius: 4px; }
-    .val-yes { color: var(--ok); font-weight: 600; } .val-no { color: var(--ink-3); }
+    .val-yes { color: var(--ok); font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
+    .val-no { color: var(--ink-3); }
 
     .pill { display: inline-block; padding: .12rem .62rem; border-radius: 999px; font-size: .75rem; font-weight: 500; }
     .pill-navy { background: rgba(27,58,92,.08); color: var(--navy); }
     .pill-gold { background: rgba(200,150,62,.16); color: #8a6a2c; }
 
-    .stage { display: flex; gap: 10px; flex-wrap: wrap; margin: .5rem 0 0; }
-    .stage .s { flex: 1; min-width: 150px; border: 1px solid var(--border); border-radius: 12px;
-                padding: .8rem .9rem; background: #FBFCFE; transition: box-shadow .15s, transform .15s; }
-    .stage .s:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-    .stage .s b { color: var(--navy); }
-    .stage .s span { color: var(--ink-2); font-size: .8rem; }
+    .section-divider { display: flex; align-items: center; gap: 14px; margin: 2rem 0 1.1rem;
+                       color: var(--ink-3); font-size: .82rem; letter-spacing: 1px; }
+    .section-divider::before, .section-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+    .empty { color: var(--ink-3); font-size: .9rem; text-align: center; padding: 1.7rem 1.2rem;
+             border: 1.5px dashed #D4DCE6; border-radius: 12px; background: #FBFCFE; }
+
+    .pipeline { display: flex; gap: 10px; flex-wrap: wrap; margin: .5rem 0 0; }
+    .pipe-step { flex: 1; min-width: 170px; display: flex; gap: 10px; align-items: flex-start;
+                 border: 1px solid var(--border); border-radius: 12px; padding: .9rem 1rem;
+                 background: #FBFCFE; transition: box-shadow .15s, transform .15s; }
+    .pipe-step:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+    .pipe-n { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+              width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), var(--gold-2));
+              color: #fff; font-size: .75rem; font-weight: 700; margin-top: 2px; }
+    .pipe-body { display: flex; flex-direction: column; }
+    .pipe-body b { color: var(--navy); font-size: .95rem; }
+    .pipe-body span { color: var(--ink-2); font-size: .8rem; }
 
     .note-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     .note-table th, .note-table td { border: 1px solid var(--border); padding: .6rem .75rem; text-align: left; vertical-align: top; }
@@ -249,7 +267,7 @@
       <div class="hero-inner">
         <span class="eyebrow">UniBindMD 无界计算生物科技</span>
         <h1>BindForge<span class="dot">.</span></h1>
-        <p class="lead">蛋白结合剂 <b style="font-weight:500;color:#fff">序列设计 → 结构预测（Boltz-2 / Chai-1）→ MD 稳定性验证</b> 一体化流程，云端 API 计算，无需本地 GPU。</p>
+        <p class="lead">蛋白结合剂 <b style="font-weight:500;color:#fff">序列设计、结构预测（Boltz-2 / Chai-1）与 MD 稳定性验证</b> 一体化流程，云端 API 计算，无需本地 GPU。</p>
         <div class="hero-tags">
           <span class="tag"><b>01</b> de novo 序列设计</span>
           <span class="tag"><b>02</b> 开源 AlphaFold3 替代预测</span>
@@ -259,10 +277,10 @@
     </div>
 
     <div class="card">
-      <h2>① 提交任务 / Submit</h2>
+      <h2><span class="step">1</span> 提交任务 / Submit</h2>
       <label for="file">上传靶点结构（PDB / CIF / FASTA）</label>
       <input id="file" type="file" accept=".pdb,.cif,.mmcif,.fasta,.fa,.faa,.txt" />
-      <div class="hint">…或不传文件、直接粘贴靶点氨基酸序列：</div>
+      <div class="hint">或不传文件、直接粘贴靶点氨基酸序列：</div>
       <textarea id="target" placeholder="MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP"></textarea>
       <div class="row">
         <div><label for="n_designs">设计数量</label><input id="n_designs" type="number" value="4" min="1" max="32" /></div>
@@ -274,23 +292,24 @@
         <input id="dry_run" type="checkbox" checked style="width:auto" /> Dry-run（mock 服务，无需 API Key，用于流程测试）
       </label>
       <div class="hint" style="margin-top:.5rem">
-        ⚖️ 靶点 ≤ 500 aa；每个账号每日 <b>2 个免费任务</b>，超出需付费（即将上线）。
+        靶点 ≤ 500 aa；每个账号每日 <b>2 个免费任务</b>，超出需付费（即将上线）。
       </div>
-      <button class="btn btn-gold" id="submit" style="margin-top:1.1rem">▶ 运行流程 / Run pipeline</button>
+      <button class="btn btn-gold" id="submit" style="margin-top:1.1rem">运行流程 / Run pipeline</button>
     </div>
 
     <div class="card">
-      <h2>② 我的任务 / Jobs</h2>
+      <h2><span class="step">2</span> 我的任务 / Jobs</h2>
       <table id="jobs">
         <thead><tr><th>任务 ID</th><th>状态</th><th>结果数</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
 
-    <div class="card hidden" id="resultsCard">
-      <h2>③ 结果 — <span id="resultJobId" class="mono"></span></h2>
+    <div class="card" id="resultsCard">
+      <h2><span class="step">3</span> 结果 / Results <span id="resultJobId" class="mono result-jobid"></span></h2>
       <div id="error"></div>
-      <table id="results">
+      <p class="empty" id="resultsEmpty">提交任务并点击「查看」后，排序结果与 3D 结构将显示在这里。</p>
+      <table id="results" class="hidden">
         <thead><tr>
           <th>#</th><th>结合剂</th><th>长度</th><th>综合分</th><th>置信度</th><th>MD</th>
           <th>ipTM</th><th>RMSD(nm)</th><th>接触保留</th><th>ΔG</th><th>序列</th><th>3D</th>
@@ -300,17 +319,28 @@
       <div class="log hidden" id="log"></div>
     </div>
 
-    <div class="card">
-      <h2>④ 流程说明 / How it works</h2>
-      <div class="stage">
-        <div class="s"><b>1 · 设计</b><br /><span>生成候选结合剂序列（de novo）</span></div>
-        <div class="s"><b>2 · 预测</b><br /><span>开源 AlphaFold3 替代（Boltz-2 / Chai-1）折叠复合体</span></div>
-        <div class="s"><b>3 · 验证</b><br /><span>本地 OpenMM MD（隐式 GBSA）测稳定性并排序</span></div>
+    <div class="section-divider"><span>了解 BindForge</span></div>
+
+    <div class="card card-info">
+      <h2>流程说明 / How it works</h2>
+      <div class="pipeline">
+        <div class="pipe-step">
+          <span class="pipe-n">1</span>
+          <div class="pipe-body"><b>设计 Design</b><span>生成候选结合剂序列（de novo）</span></div>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-n">2</span>
+          <div class="pipe-body"><b>预测 Predict</b><span>开源 AlphaFold3 替代（Boltz-2 / Chai-1）折叠复合体</span></div>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-n">3</span>
+          <div class="pipe-body"><b>验证 Validate</b><span>OpenMM MD（隐式 GBSA）测稳定性并排序</span></div>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <h2>⑤ 适用范围与限制 / Scope &amp; limits</h2>
+    <div class="card card-info">
+      <h2>适用范围与限制 / Scope &amp; limits</h2>
       <table class="note-table">
         <thead><tr><th>项目</th><th>限制说明</th></tr></thead>
         <tbody>
@@ -332,8 +362,8 @@
       <div class="foot">
         <img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" />
         <div class="legal">
-          © 2026 深圳市无界计算生物科技有限公司 · UniBindMD Biotech<br />
-          BindForge · 蛋白结合剂设计平台 &nbsp;|&nbsp; 粤ICP备2026102804号
+          © 2026 深圳市无界计算生物科技有限公司 UniBindMD Biotech<br />
+          BindForge 蛋白结合剂设计平台 &nbsp;|&nbsp; 粤ICP备2026102804号
         </div>
       </div>
     </footer>
@@ -348,13 +378,14 @@
       </div>
       <div id="viewport"></div>
       <div class="modal-head" style="border-top:1px solid var(--border);border-bottom:0;padding:.5rem 1.2rem">
-        <span class="small" id="viewerHint">拖拽旋转 · 滚轮缩放 · 右键平移</span>
+        <span class="small" id="viewerHint">拖拽旋转，滚轮缩放，右键平移</span>
       </div>
     </div>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
     const I18N = {
       login: '登录', register: '注册', loginTitle: '登录平台', registerTitle: '注册账号',
       loginSub: '登录后使用蛋白结合剂设计工具', registerSub: '创建账号以使用 BindForge',
@@ -365,8 +396,8 @@
     };
     let lang = localStorage.getItem('bf_lang') || 'zh';
 
-    const fmt = (v, d = 3) => (v === null || v === undefined) ? '—' : (typeof v === 'number' ? v.toFixed(d) : v);
-    const pct = (v) => (v === null || v === undefined) ? '—' : (v * 100).toFixed(0) + '%';
+    const fmt = (v, d = 3) => (v === null || v === undefined) ? '–' : (typeof v === 'number' ? v.toFixed(d) : v);
+    const pct = (v) => (v === null || v === undefined) ? '–' : (v * 100).toFixed(0) + '%';
 
     async function api(path, opts = {}) {
       const r = await fetch(path, opts);
@@ -440,7 +471,7 @@
         if (j.id) pollJob(j.id);
       } catch (e) {
         $('resultsCard').classList.remove('hidden');
-        $('resultJobId').textContent = '—';
+        $('resultJobId').textContent = '–';
         $('error').innerHTML = `<div class="err">${escapeHtml(e.detail || e.message || '提交失败 / submission failed')}</div>`;
         loadMe(); // refresh quota chip (a 429 means the limit is now hit)
       }
@@ -482,14 +513,16 @@
     function showResult(id, j) {
       $('resultsCard').classList.remove('hidden');
       $('resultJobId').textContent = id;
+      $('resultsEmpty').classList.add('hidden');
+      $('results').classList.remove('hidden');
       $('error').innerHTML = j.error ? `<div class="err">${j.error}</div>` : '';
       const tbody = $('results').querySelector('tbody'); tbody.innerHTML = '';
       for (const row of (j.result || [])) {
         const tr = document.createElement('tr');
-        const md = row.validated ? `<span class="val-yes">✓</span>` : `<span class="val-no">—</span>`;
+        const md = row.validated ? `<span class="val-yes">${CHECK} 通过</span>` : `<span class="val-no">–</span>`;
         const view = row.binder_id
           ? `<button class="btn btn-ghost" style="padding:.2rem .7rem;font-size:.75rem" onclick="viewStructure('${id}','${row.binder_id}')">3D</button>`
-          : '<span class="small">—</span>';
+          : '<span class="small">–</span>';
         tr.innerHTML = `<td>${row.rank}</td><td class="mono">${row.binder_id}</td>
           <td>${row.length}</td><td>${fmt(row.score)}</td><td>${fmt(row.confidence)}</td>
           <td>${md}</td><td>${fmt(row.ipTM, 2)}</td><td>${fmt(row.md_rmsd_mean, 2)}</td>
@@ -514,13 +547,13 @@
 
     function viewStructure(jobId, binderId) {
       openViewer();
-      $('viewerTitle').textContent = `复合物结构 — ${binderId}`;
+      $('viewerTitle').textContent = `复合物结构 ${binderId}`;
       if (!_stage) { $('viewerHint').textContent = 'NGL 库加载失败（需联网加载 CDN）/ NGL failed to load (CDN requires internet)'; return; }
       const url = `/api/jobs/${jobId}/structure/${binderId}.pdb`;
       _stage.removeAllComponents();
-      $('viewerHint').textContent = '加载中 / loading…';
+      $('viewerHint').textContent = '加载中…';
       _stage.loadFile(url, { defaultRepresentation: true })
-        .then((comp) => { comp.autoView(); $('viewerHint').textContent = '拖拽旋转 · 滚轮缩放 · 右键平移'; })
+        .then((comp) => { comp.autoView(); $('viewerHint').textContent = '拖拽旋转，滚轮缩放，右键平移'; })
         .catch((err) => { $('viewerHint').textContent = '结构加载失败 / failed to load: ' + (err && err.message ? err.message : 'not found'); });
     }
 
