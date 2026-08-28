@@ -136,14 +136,20 @@ export BINDFORGE_SLURM_CONDA=bindforge           # conda env with bindforge inst
 export BINDFORGE_SLURM_MODULES="cuda/12,openmm"  # or module load <these>
 export BINDFORGE_SLURM_REMOTE_DIR=bindforge_jobs # job dir under $HOME
 
+# If `source activate <env>` is unavailable inside non-interactive sbatch (it
+# often is — conda needs shell init), point straight at the env's console script:
+export BINDFORGE_SLURM_BINDFORGE=/path/to/env/bin/bindforge
+
 bindforge serve
 ```
 
 The cluster must have `binderforge` installed on `PATH` (in the `conda_env` if
-set) and, for real runs, the provider API keys in its environment/`.env`. The
-generated sbatch script is produced by `binderforge/remote.py`:
-`render_slurm_script()` (pure, unit-tested) and `SlurmBackend` (paramiko
-transport — submit / poll / download).
+set, or via `BINDFORGE_SLURM_BINDFORGE`) and, for real runs, the provider API
+keys in its environment/`.env`. Files are transferred over the SSH **exec
+channel** (base64) rather than SFTP/SCP, because many HPC login nodes disable
+those subsystems. The generated sbatch script is produced by
+`binderforge/remote.py`: `render_slurm_script()` (pure, unit-tested) and
+`SlurmBackend` (paramiko transport — submit / poll / download).
 
 ---
 
