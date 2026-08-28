@@ -141,7 +141,17 @@ def run_md(complex_path: str, binder_chain: str = "B", target_chain: str = "A",
     base = os.path.splitext(os.path.basename(complex_path))[0]
 
     # --- 1. Load & prepare ------------------------------------------------
-    struct = _load_structure(complex_path)
+    # Real targets (PDB deposits, Boltz-2 / AlphaFold / Chai-1 output) often lack
+    # the C-terminal OXT that OpenMM's terminal residue templates require; add it
+    # before templating so createSystem doesn't raise "No template found ...
+    # missing a terminal group". (Only PDB — CIF parsing is OpenMM's own.)
+    from ..io import add_terminal_oxygens
+    if complex_path.lower().endswith(".pdb"):
+        norm_path = os.path.join(out_dir, f"{base}_md_in.pdb")
+        add_terminal_oxygens(complex_path, norm_path)
+    else:
+        norm_path = complex_path
+    struct = _load_structure(norm_path)
     modeller = Modeller(struct.topology, struct.positions)
     _clean(modeller)
     ff = ForceField(*implicit.FORCEFIELD_XMLS)
@@ -199,7 +209,9 @@ def run_md(complex_path: str, binder_chain: str = "B", target_chain: str = "A",
         total_steps = int(ns * 1e6 / dt_fs)
         save_ps = 10.0 if ns < 1.0 else 100.0
         save_steps = max(1, int(save_ps * 1000.0 / dt_fs))
-        n_frames = total_steps // save_steps
+        # At least one frame, so a sub-save-interval `ns` still yields an RMSD
+        # (otherwise rmsd_series[-1] indexes an empty array).
+        n_frames = max(1, total_steps // save_steps)
 
         binder_frames = []   # (n_frames, n_binder_ca, 3), target-superposed
         rmsd_series = []     # per-frame binder RMSD vs reference (nm)

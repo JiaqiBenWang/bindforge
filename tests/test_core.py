@@ -171,3 +171,70 @@ def test_validated_candidates_rank_first():
     ranked = rank_candidates([b_hi, b_lo], preds, md)
     # lo is validated and must come first despite the lower confidence.
     assert ranked[0].binder.id == "lo"
+
+
+def test_select_pdb_chains_filters_multichain(tmp_path):
+    # A multi-chain target must be reducible to the chain the user targets.
+    p = tmp_path / "two_chain.pdb"
+    atoms = io.build_peptide_pdb("ACDE", chain="A") + io.build_peptide_pdb("FGHI", chain="B")
+    io.write_pdb(atoms, str(p))
+    out = tmp_path / "selected.pdb"
+    io.select_pdb_chains(str(p), "B", str(out))
+
+    assert {a["chain"] for a in io.parse_pdb(str(out))} == {"B"}
+    assert io.sequence_from_pdb(str(out)) == "FGHI"
+
+
+def test_select_pdb_chains_unknown_chain_raises(tmp_path):
+    p = tmp_path / "one_chain.pdb"
+    io.build_peptide_pdb("ACDE", str(p), chain="A")
+    with pytest.raises(ValueError):
+        io.select_pdb_chains(str(p), "Z", str(tmp_path / "nope.pdb"))
+
+
+def test_add_terminal_oxygens_caps_stripped_termini(tmp_path):
+    # A PDB whose C-terminal residue lacks OXT (like real Boltz/AlphaFold output)
+    # must gain one, while an already-capped chain is left alone.
+    src = tmp_path / "nocap.pdb"
+    atoms = io.build_peptide_pdb("ACDE", chain="A")
+    atoms = [a for a in atoms if a["name"] != "OXT"]  # strip the builder's OXT
+    io.write_pdb(atoms, str(src))
+
+    out = tmp_path / "capped.pdb"
+    io.add_terminal_oxygens(str(src), str(out))
+
+    parsed = io.parse_pdb(str(out))
+    names = {a["name"] for a in parsed}
+    assert "OXT" in names
+    # The terminal residue (D, resseq 4) is the one that got capped.
+    oxt = [a for a in parsed if a["name"] == "OXT"]
+    assert len(oxt) == 1
+    assert oxt[0]["resname"] == "GLU" and oxt[0]["resseq"] == 4
+
+
+def test_add_terminal_oxygens_leaves_existing_oxt(tmp_path):
+    p = tmp_path / "capped.pdb"
+    io.build_peptide_pdb("ACDE", str(p), chain="A")
+    io.add_terminal_oxygens(str(p), str(tmp_path / "out.pdb"))
+    oxt = [a for a in io.parse_pdb(str(tmp_path / "out.pdb")) if a["name"] == "OXT"]
+    assert len(oxt) == 1  # not duplicated
+
+
+def test_find_disulfides_and_ssbond_write(tmp_path):
+    # Two cysteines whose SG atoms sit at disulfide distance must be written
+    # back with an SSBOND record — otherwise OpenMM reads them as free thiols
+    # clashing at ~2 Å and the simulation goes NaN during dynamics.
+    def sg(chain, resseq, x):
+        return {"serial": 0, "name": "SG", "resname": "CYS", "chain": chain,
+                "resseq": resseq, "x": x, "y": 0.0, "z": 0.0, "element": "S"}
+
+    close = [sg("A", 1, 0.0), sg("A", 2, 2.03)]
+    assert len(io.find_disulfides(close)) == 1
+
+    p = tmp_path / "ss.pdb"
+    io.write_pdb(close, str(p))
+    assert "SSBOND" in p.read_text(encoding="utf-8")
+
+    # A cysteine far away is not a disulfide.
+    far = [sg("A", 1, 0.0), sg("A", 2, 8.0)]
+    assert len(io.find_disulfides(far)) == 0

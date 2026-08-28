@@ -7,233 +7,330 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <script src="https://unpkg.com/ngl@2.0.0-dev.39/dist/ngl.js"></script>
   <style>
+    /* ───────────── 设计变量：深色科技风 ───────────── */
     :root {
-      --navy: #1B3A5C;         /* 主色 deep navy */
-      --navy-2: #2C5F8A;       /* 次级蓝 */
-      --deep: #0A1628;         /* 深海军蓝 */
-      --gold: #C8963E;         /* 品牌金 */
-      --gold-2: #B8862E;
-      --bg: #F5F7FA;
-      --bg-card: #FFFFFF;
-      --cream: #FAF7F2;
-      --border: #E4E8EF;
-      --ink: #16202E;
-      --ink-2: #55606E;
-      --ink-3: #8A93A2;
-      --on-dark: #C9D4E2;
-      --ok: #2E8B57;
-      --warn: #B8862E;
-      --err: #C0504D;
-      --radius: 12px;
-      --radius-lg: 18px;
-      --shadow: 0 1px 2px rgba(16,32,46,.04), 0 6px 24px rgba(16,32,46,.07);
-      --shadow-hover: 0 2px 6px rgba(16,32,46,.06), 0 14px 40px rgba(27,58,92,.16);
+      --bg-0: #0a0e17;        /* 最深背景 */
+      --bg-1: #1a1f2e;        /* 次级背景 */
+      --surface: #202a4a;     /* 卡片表面（比背景亮，形成层次） */
+      --surface-2: #2a3556;   /* 抬升表面 */
+      --line: #3a4568;        /* 边框 */
+      --cyan: #00d4ff;        /* 电光蓝 */
+      --purple: #7b2ffc;      /* 紫 */
+      --text: #eaf0f6;        /* 主文字 */
+      --text-2: #aab4c6;      /* 次级文字 */
+      --text-3: #6b7488;      /* 弱化文字 */
+      --ok: #2fe0a7;
+      --warn: #f5b84a;
+      --err: #ff6b6b;
+      --radius: 14px;
+      --radius-lg: 20px;
+      --glow-cyan: 0 0 24px rgba(0,212,255,.35);
+      --glow-purple: 0 0 24px rgba(123,47,252,.35);
+      /* 白色卡片内部配色（深色背景上的浅色卡片） */
+      --card-bg: #ffffff;
+      --card-line: #e6eaf2;
+      --card-text: #1c2434;
+      --card-text-2: #4b5668;
+      --card-text-3: #6a7488;
+      --card-input-bg: #f4f6fa;
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
-      margin: 0;
+      margin: 0; color: var(--text); line-height: 1.65;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
                    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
                    "Helvetica Neue", Arial, sans-serif;
-      background: var(--bg); color: var(--ink); line-height: 1.65;
+      background: linear-gradient(160deg, var(--bg-0) 0%, var(--bg-1) 55%, #0d1220 100%);
+      background-attachment: fixed;
       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
     }
-    a { color: var(--navy-2); text-decoration: none; }
-    ::selection { background: rgba(200,150,62,.25); }
+    a { color: var(--cyan); text-decoration: none; }
+    ::selection { background: rgba(0,212,255,.28); }
     .mono, textarea, .log, code {
       font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
                    "Liberation Mono", "Courier New", monospace;
     }
 
-    /* ── header ── */
-    header {
-      position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.96);
-      border-bottom: 1px solid var(--border);
-      box-shadow: 0 1px 0 rgba(16,32,46,.03);
-    }
-    header::before { content:""; display:block; height:3px;
-      background: linear-gradient(90deg, var(--navy) 0%, var(--navy-2) 35%, var(--gold) 100%); }
+    /* ───────────── 背景：粒子画布 + 网格线 ───────────── */
+    #particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .grid-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .35;
+      background-image: linear-gradient(rgba(0,212,255,.05) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0,212,255,.05) 1px, transparent 1px);
+      background-size: 44px 44px;
+      -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%);
+              mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%); }
+    header, .auth-wrap, .wrap, .modal-overlay { position: relative; z-index: 1; }
+
+    /* ───────────── 头部导航 ───────────── */
+    header { position: sticky; top: 0; z-index: 50; background: rgba(10,14,23,.82);
+      backdrop-filter: saturate(160%) blur(12px); border-bottom: 1px solid var(--line); }
+    header::before { content:""; display:block; height:2px;
+      background: linear-gradient(90deg, var(--cyan), var(--purple)); }
     .hdr { max-width: 1200px; margin: 0 auto; padding: 10px 24px;
            display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; }
-    .brand-logo { height: 38px; width: auto; display: block; }
-    .brand-sep { width: 1px; height: 34px; background: var(--border); }
-    .brand-name { display: flex; flex-direction: column; line-height: 1.3; }
-    .brand-name .name { font-size: 17px; font-weight: 700; color: var(--navy); }
-    .brand-name .sub { font-size: 11px; color: var(--ink-3); }
+    .brand { display: flex; align-items: center; gap: 14px; color: inherit; }
+    .logo-chip { display: inline-flex; align-items: center; background: rgba(255,255,255,.96);
+                 padding: 5px 10px; border-radius: 9px; }
+    .brand-logo { height: 28px; width: auto; display: block; }
+    .brand-sep { width: 1px; height: 32px; background: var(--line); }
+    .brand-name { display: flex; flex-direction: column; line-height: 1.25; }
+    .brand-name .name { display: flex; align-items: baseline; gap: 9px; font-size: 21px; font-weight: 700; letter-spacing: .3px; }
+    .brand-name .co { color: var(--text); }
+    .brand-name .product { background: linear-gradient(90deg, var(--cyan), var(--purple)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .brand-name .sub { font-size: 12px; color: var(--text-3); letter-spacing: .5px; }
     .hdr-actions { display: flex; align-items: center; gap: 12px; }
-    .user-chip { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
+    .user-chip { color: var(--text-2); font-size: 14px; }
 
-    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem 4rem; }
 
-    /* ── hero ── */
-    .hero { position: relative; overflow: hidden; color: #fff; margin-bottom: 1.5rem;
-      background: linear-gradient(135deg, #0A1628 0%, #12304F 55%, #1B3A5C 100%);
-      border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-    .hero::before { content:""; position:absolute; inset:0; pointer-events:none;
-      background:
-        radial-gradient(circle at 82% 18%, rgba(200,150,62,.22), transparent 42%),
-        radial-gradient(circle at 12% 85%, rgba(44,95,138,.35), transparent 50%);
-    }
-    .hero-inner { position: relative; max-width: 1080px; margin: 0 auto; padding: 3rem 2.25rem 2.6rem; }
-    .eyebrow { display: inline-block; font-size: 12px; letter-spacing: 1px;
-               color: var(--gold); font-weight: 600; margin-bottom: .9rem; }
-    .hero h1 { margin: 0; font-size: 2.9rem; line-height: 1.05; font-weight: 700; letter-spacing: -.5px; }
-    .hero h1 .dot { color: var(--gold); }
-    .hero .lead { max-width: 660px; margin: 1rem 0 0; color: var(--on-dark); font-size: 1.05rem; font-weight: 300; }
-    .hero-tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 1.4rem; }
-    .hero-tags .tag { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem;
-      padding: .4rem .9rem; border-radius: 999px; background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.14); color: #E7EEF5; }
-    .hero-tags .tag b { color: var(--gold); font-weight: 600; }
+    /* ───────────── Hero ───────────── */
+    .hero { position: relative; display: flex; align-items: center; gap: 2rem;
+      padding: 3.4rem 0 3rem; min-height: 420px; overflow: hidden; }
+    .hero-copy { flex: 1 1 540px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px;
+      letter-spacing: 2px; color: var(--cyan); font-weight: 600; margin-bottom: 1rem; }
+    .eyebrow::before { content:""; width: 22px; height: 1px; background: var(--cyan); }
+    .hero h1 { margin: 0; font-size: 2.6rem; line-height: 1.15; font-weight: 700; letter-spacing: -.5px; }
+    .grad { background: linear-gradient(90deg, var(--cyan) 0%, #5a9bff 45%, var(--purple) 100%);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .type-line { margin: 1.1rem 0 0; font-size: 1.18rem; font-weight: 300; color: var(--text-2); min-height: 1.9em; }
+    .type-line .cursor { display: inline-block; width: 2px; height: 1.1em; background: var(--cyan);
+                         vertical-align: text-bottom; margin-left: 3px; animation: blink 1s steps(2) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .hero-cta { display: flex; gap: 14px; margin-top: 1.7rem; flex-wrap: wrap; }
 
-    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
-            padding: 1.6rem 1.6rem 1.7rem; margin-bottom: 1.25rem; box-shadow: var(--shadow); }
-    .card h2 { margin: 0 0 .9rem; font-size: 1.06rem; color: var(--navy); font-weight: 600;
-               display: flex; align-items: center; gap: 10px; }
+    .hero-art { flex: 0 0 380px; max-width: 42vw; }
+    .hero-art svg { width: 100%; height: auto; }
+    .hero-art .node { animation: pulse 3.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+    @keyframes pulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }
+
+    /* ───────────── 按钮（流光悬停） ───────────── */
+    .btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+           padding: .74rem 1.7rem; border: 0; border-radius: 999px; cursor: pointer; overflow: hidden;
+           font: inherit; font-weight: 600; letter-spacing: .3px; transition: transform .15s, box-shadow .2s; }
+    .btn-primary { background: linear-gradient(135deg, var(--cyan), #2f7bff); color: #04121f;
+                   box-shadow: 0 6px 20px rgba(0,212,255,.28); }
+    .btn-purple { background: linear-gradient(135deg, var(--purple), #9a4bff); color: #fff;
+                  box-shadow: 0 6px 20px rgba(123,47,252,.3); }
+    .btn-ghost { background: rgba(255,255,255,.03); color: var(--text); border: 1px solid var(--line); }
+    .btn-ghost:hover { border-color: var(--cyan); color: var(--cyan); }
+    /* 流光扫过 */
+    .btn::after { content:""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%;
+      background: linear-gradient(100deg, transparent, rgba(255,255,255,.5), transparent);
+      transform: skewX(-20deg); transition: left .55s; }
+    .btn:hover::after { left: 130%; }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary:hover { box-shadow: var(--glow-cyan); }
+    .btn-purple:hover { box-shadow: var(--glow-purple); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn:disabled::after { display: none; }
+
+    /* ───────────── 数据统计 ───────────── */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: .5rem 0 1.8rem; }
+    .stat { background: var(--card-bg); border: 1px solid var(--card-line); border-radius: var(--radius);
+            padding: 1.2rem 1.1rem; text-align: center; }
+    .stat-num { font-size: 2rem; font-weight: 700; line-height: 1;
+      background: linear-gradient(135deg, var(--cyan), var(--purple)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { margin-top: .5rem; color: var(--card-text-3); font-size: .8rem; }
+
+    /* ───────────── 卡片 ───────────── */
+    .card { background: var(--card-bg); border: 1px solid var(--card-line); border-radius: var(--radius-lg);
+            padding: 1.6rem 1.6rem 1.7rem; margin-bottom: 1.25rem; position: relative;
+            transition: transform .2s, box-shadow .2s, border-color .2s; }
+    .card:hover { transform: translateY(-2px); border-color: rgba(0,212,255,.6); box-shadow: 0 12px 34px rgba(0,0,0,.28), 0 0 22px rgba(0,212,255,.16); }
+    .card h2 { margin: 0 0 .9rem; font-size: 1.05rem; font-weight: 600;
+               display: flex; align-items: center; gap: 10px; color: var(--card-text); }
     .step { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-            width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--navy), var(--navy-2));
-            color: #fff; font-size: .85rem; font-weight: 700; box-shadow: 0 2px 6px rgba(27,58,92,.22); }
+            width: 26px; height: 26px; border-radius: 8px; font-size: .85rem; font-weight: 700;
+            background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #04121f; }
     .card-info h2::before { content:""; width: 4px; height: 18px; border-radius: 2px;
-            background: linear-gradient(180deg, var(--gold), var(--gold-2)); }
-    .result-jobid { font-size: .7rem; color: var(--ink-3); background: var(--bg);
-                    padding: .12rem .55rem; border-radius: 6px; border: 1px solid var(--border); }
+            background: linear-gradient(180deg, var(--cyan), var(--purple)); }
+    .result-jobid { font-size: .7rem; color: var(--cyan); background: rgba(0,212,255,.08);
+                    padding: .12rem .55rem; border-radius: 6px; border: 1px solid rgba(0,212,255,.25); }
     .result-jobid:empty { display: none; }
 
-    label { display: block; font-size: .84rem; color: var(--ink-2); margin: .85rem 0 .3rem; font-weight: 500; }
+    /* ───────────── 表单 ───────────── */
+    label { display: block; font-size: .84rem; color: var(--card-text-2); margin: .85rem 0 .3rem; font-weight: 500; }
     input[type=text], input[type=email], input[type=password], input[type=number], textarea {
-      width: 100%; padding: .68rem .85rem; border-radius: 10px; border: 1.5px solid var(--border);
-      background: #fff; color: var(--ink); font: inherit; transition: border-color .15s, box-shadow .15s;
-    }
-    input:hover, textarea:hover { border-color: #CBD4DE; }
-    input:focus, textarea:focus { outline: none; border-color: var(--navy-2);
-      box-shadow: 0 0 0 3px rgba(44,95,138,.14); }
+      width: 100%; padding: .68rem .85rem; border-radius: 10px; border: 1px solid var(--card-line);
+      background: var(--card-input-bg); color: var(--card-text); font: inherit;
+      transition: border-color .15s, box-shadow .15s; }
+    input:hover, textarea:hover { border-color: #c3cbdb; }
+    input:focus, textarea:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,212,255,.14); }
     textarea { min-height: 76px; resize: vertical; font-size: .85rem; }
-    input[type=file] { width: 100%; padding: .7rem; border: 1.5px dashed #C9D2DC; border-radius: 10px;
-      background: var(--cream); cursor: pointer; }
-    input[type=file]:hover { border-color: var(--navy-2); background: #fff; }
+    input[type=file] { width: 100%; padding: .7rem; border: 1px dashed #c3cbdb; border-radius: 10px;
+      background: var(--card-input-bg); color: var(--card-text-2); cursor: pointer; }
+    input[type=file]:hover { border-color: var(--cyan); }
     .row { display: flex; gap: 1rem; flex-wrap: wrap; }
     .row > div { flex: 1; min-width: 130px; }
-    .hint { color: var(--ink-3); font-size: .8rem; margin: .35rem 0 0; }
+    .hint { color: var(--card-text-3); font-size: .8rem; margin: .35rem 0 0; }
+    ::placeholder { color: var(--card-text-3); opacity: 1; }
+    /* ── 提交表单重设计 ── */
+    .card-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: .4rem; }
+    .card-head .card-sub { color: var(--card-text-3); font-size: .82rem; font-weight: 400; letter-spacing: .3px; }
+    .field-group { margin-top: .9rem; }
+    .fg-title { display: flex; align-items: center; gap: 8px; font-size: .82rem; font-weight: 600;
+                color: var(--card-text); letter-spacing: .5px; margin-bottom: .6rem; }
+    .fg-title::before { content: ""; width: 3px; height: 14px; border-radius: 2px;
+                background: linear-gradient(180deg, var(--cyan), var(--purple)); }
+    .file-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+                 padding: 1.7rem 1.2rem; border: 1.5px dashed #c3cbdb; border-radius: 12px;
+                 background: var(--card-input-bg); cursor: pointer; text-align: center;
+                 color: var(--card-text); transition: border-color .15s, background .15s; }
+    .file-drop:hover { border-color: var(--cyan); background: rgba(0,212,255,.05); }
+    .file-drop svg { width: 26px; height: 26px; color: var(--cyan); }
+    .file-drop .fd-main { font-weight: 600; }
+    .file-drop .fd-sub { color: var(--card-text-3); font-size: .78rem; }
+    .file-input { display: none; }
+    .or-divider { display: flex; align-items: center; gap: 12px; margin: 1rem 0; color: var(--card-text-3); font-size: .8rem; }
+    .or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: var(--card-line); }
+    .param-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: stretch; }
+    .param { display: flex; flex-direction: column; }
+    .param label { margin: 0 0 .35rem; color: var(--card-text); font-weight: 600; white-space: nowrap; }
+    .param .unit { display: block; font-size: .74rem; color: var(--card-text-2); margin-top: .35rem; white-space: nowrap; }
+    .submit-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+                  margin-top: 1.3rem; padding-top: 1.2rem; border-top: 1px solid var(--card-line); }
+    .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+              color: var(--card-text-2); font-size: .88rem; }
+    .switch input { display: none; }
+    .switch .track { flex: 0 0 auto; width: 40px; height: 22px; border-radius: 999px; background: #cbd3e0;
+                     position: relative; transition: .2s; }
+    .switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+                            border-radius: 50%; background: #fff; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    .switch input:checked + .track { background: linear-gradient(135deg, var(--cyan), var(--purple)); }
+    .switch input:checked + .track::after { left: 20px; }
+    .switch-note { color: var(--card-text-3); font-size: .76rem; }
+    @media (max-width: 720px) { .param-grid { grid-template-columns: repeat(2, 1fr); } }
 
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-           padding: .72rem 1.6rem; border: 0; border-radius: 999px; cursor: pointer;
-           font: inherit; font-weight: 600; letter-spacing: .3px; transition: filter .15s, transform .05s, box-shadow .15s;
-           text-decoration: none; }
-    .btn-primary { background: linear-gradient(135deg, var(--navy), var(--navy-2)); color: #fff;
-                   box-shadow: 0 4px 14px rgba(27,58,92,.22); }
-    .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-2)); color: #fff;
-                box-shadow: 0 4px 14px rgba(200,150,62,.28); }
-    .btn-ghost { background: transparent; color: var(--navy); border: 1.5px solid #C6D2DF; }
-    .btn:hover { filter: brightness(1.06); box-shadow: 0 6px 18px rgba(16,32,46,.18); }
-    .btn:active { transform: translateY(1px); }
-    .btn:disabled { opacity: .5; cursor: not-allowed; filter: none; box-shadow: none; }
-
-    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    th, td { text-align: left; padding: .6rem .65rem; border-bottom: 1px solid var(--border); }
-    th { color: var(--ink-2); font-weight: 600; background: #F0F4F9; }
+    /* ───────────── 表格 ───────────── */
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; color: var(--card-text); }
+    th, td { text-align: left; padding: .6rem .65rem; border-bottom: 1px solid var(--card-line); }
+    th { color: var(--card-text-2); font-weight: 600; background: var(--card-input-bg); }
     th:first-child { border-radius: 8px 0 0 8px; } th:last-child { border-radius: 0 8px 8px 0; }
-    tr:hover td { background: #FAFBFC; }
+    tr:hover td { background: rgba(0,212,255,.05); }
     .mono { font-size: .78rem; word-break: break-all; }
     .status { font-weight: 600; }
     .status.done { color: var(--ok); } .status.running, .status.queued { color: var(--warn); }
     .status.failed { color: var(--err); }
-    .err { color: var(--err); white-space: pre-wrap; background: #FBEEEE; border: 1px solid #F0C9C9;
+    .err { color: var(--err); white-space: pre-wrap; background: rgba(255,107,107,.08); border: 1px solid rgba(255,107,107,.3);
            border-radius: 10px; padding: .7rem .9rem; margin-top: .5rem; }
-    .log { background: var(--deep); color: #A9CBE8; border-radius: 10px; padding: .8rem .95rem;
-           font-size: .74rem; max-height: 200px; overflow: auto;
-           white-space: pre-wrap; margin-top: .75rem; line-height: 1.55; }
-    .log::-webkit-scrollbar { width: 8px; } .log::-webkit-scrollbar-thumb { background: #2C3E50; border-radius: 4px; }
+    .log { background: #060a12; color: #7fe0ff; border-radius: 10px; padding: .8rem .95rem;
+           font-size: .74rem; max-height: 200px; overflow: auto; white-space: pre-wrap;
+           margin-top: .75rem; line-height: 1.55; border: 1px solid var(--line); }
+    .log::-webkit-scrollbar { width: 8px; } .log::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 4px; }
     .val-yes { color: var(--ok); font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
-    .val-no { color: var(--ink-3); }
+    .val-no { color: var(--card-text-3); }
 
     .pill { display: inline-block; padding: .12rem .62rem; border-radius: 999px; font-size: .75rem; font-weight: 500; }
-    .pill-navy { background: rgba(27,58,92,.08); color: var(--navy); }
-    .pill-gold { background: rgba(200,150,62,.16); color: #8a6a2c; }
+    .pill-cyan { background: rgba(0,212,255,.1); color: var(--cyan); }
+    .pill-purple { background: rgba(123,47,252,.16); color: #c9a6ff; }
 
-    .section-divider { display: flex; align-items: center; gap: 14px; margin: 2rem 0 1.1rem;
-                       color: var(--ink-3); font-size: .82rem; letter-spacing: 1px; }
-    .section-divider::before, .section-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
-    .empty { color: var(--ink-3); font-size: .9rem; text-align: center; padding: 1.7rem 1.2rem;
-             border: 1.5px dashed #D4DCE6; border-radius: 12px; background: #FBFCFE; }
+    /* ───────────── 分隔标题 ───────────── */
+    .section-title { display: flex; align-items: center; gap: 14px; margin: 2.2rem 0 1.2rem;
+      color: var(--text-2); font-size: .88rem; letter-spacing: 2px; }
+    .section-title::before, .section-title::after { content:""; flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--line), transparent); }
 
-    .pipeline { display: flex; gap: 10px; flex-wrap: wrap; margin: .5rem 0 0; }
-    .pipe-step { flex: 1; min-width: 170px; display: flex; gap: 10px; align-items: flex-start;
-                 border: 1px solid var(--border); border-radius: 12px; padding: .9rem 1rem;
-                 background: #FBFCFE; transition: box-shadow .15s, transform .15s; }
-    .pipe-step:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-    .pipe-n { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-              width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--gold), var(--gold-2));
-              color: #fff; font-size: .75rem; font-weight: 700; margin-top: 2px; }
-    .pipe-body { display: flex; flex-direction: column; }
-    .pipe-body b { color: var(--navy); font-size: .95rem; }
-    .pipe-body span { color: var(--ink-2); font-size: .8rem; }
+    .empty { color: var(--card-text-3); font-size: .9rem; text-align: center; padding: 1.7rem 1.2rem;
+             border: 1.5px dashed #c3cbdb; border-radius: 12px; background: var(--card-input-bg); }
 
-    .note-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    .note-table th, .note-table td { border: 1px solid var(--border); padding: .6rem .75rem; text-align: left; vertical-align: top; }
-    .note-table th { background: var(--cream); color: var(--ink-2); width: 150px; }
+    /* ───────────── 3D 翻转卡片 ───────────── */
+    .flip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; perspective: 1200px; }
+    .flip-card { height: 200px; cursor: pointer; }
+    .flip-inner { position: relative; width: 100%; height: 100%; transition: transform .7s cubic-bezier(.2,.7,.2,1);
+      transform-style: preserve-3d; }
+    .flip-card:hover .flip-inner, .flip-card.flipped .flip-inner { transform: rotateY(180deg); }
+    .flip-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: var(--radius);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .7rem;
+      padding: 1.3rem; text-align: center; border: 1px solid var(--card-line); background: var(--card-bg); }
+    .flip-front { border-top: 2px solid var(--cyan); }
+    .flip-front svg { width: 44px; height: 44px; }
+    .flip-front b { font-size: 1.15rem; color: var(--card-text); }
+    .flip-front span { color: var(--card-text-3); font-size: .78rem; }
+    .flip-back { transform: rotateY(180deg); border-top: 2px solid var(--purple); background: var(--card-input-bg); }
+    .flip-back p { margin: 0; color: var(--card-text-2); font-size: .88rem; line-height: 1.6; }
 
-    /* auth view */
+    /* ───────────── 范围表格 ───────────── */
+    .note-table { width: 100%; border-collapse: collapse; font-size: .85rem; color: var(--card-text); }
+    .note-table th, .note-table td { border: 1px solid var(--card-line); padding: .6rem .75rem; text-align: left; vertical-align: top; }
+    .note-table th { background: var(--card-input-bg); color: var(--card-text-2); width: 150px; }
+
+    /* ───────────── 登录卡片 ───────────── */
     .auth-wrap { max-width: 420px; margin: 3rem auto; padding: 0 1.25rem; }
-    .auth-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
-                 padding: 2rem 1.9rem 2.1rem; box-shadow: var(--shadow-hover); }
+    .auth-card { background: var(--card-bg); border: 1px solid var(--card-line); border-radius: var(--radius-lg);
+                 padding: 2rem 1.9rem 2.1rem; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
     .auth-brand { display: flex; justify-content: center; margin-bottom: 1rem; }
-    .auth-brand .brand-logo { height: 56px; }
-    .auth-card h2 { text-align: center; color: var(--navy); margin: .25rem 0 .2rem; font-size: 1.25rem; }
-    .auth-card .sub { text-align: center; color: var(--ink-3); margin: 0 0 1.25rem; font-size: .9rem; }
-    .auth-tabs { display: flex; gap: 8px; margin-bottom: 1.1rem; background: var(--bg); padding: 4px; border-radius: 999px; }
-    .auth-tabs button { flex: 1; padding: .55rem; border-radius: 999px; border: 0;
-                        background: transparent; cursor: pointer; font: inherit; font-weight: 600; color: var(--ink-2); }
-    .auth-tabs button.active { background: var(--navy); color: #fff; box-shadow: 0 3px 10px rgba(27,58,92,.25); }
+    .auth-brand .brand-logo { height: 44px; }
+    .auth-brand .logo-chip { padding: 8px 12px; }
+    .auth-card h2 { text-align: center; color: var(--card-text); margin: .25rem 0 .2rem; font-size: 1.25rem; }
+    .auth-card .sub { text-align: center; color: var(--card-text-3); margin: 0 0 1.25rem; font-size: .9rem; }
+    .auth-tabs { display: flex; gap: 8px; margin-bottom: 1.1rem; background: var(--card-input-bg); padding: 4px; border-radius: 999px; }
+    .auth-tabs button { flex: 1; padding: .55rem; border-radius: 999px; border: 0; background: transparent;
+                        cursor: pointer; font: inherit; font-weight: 600; color: var(--card-text-2); }
+    .auth-tabs button.active { background: linear-gradient(135deg, var(--cyan), #2f7bff); color: #fff; }
     .auth-msg { color: var(--err); font-size: .85rem; min-height: 1.2rem; margin: .4rem 0; }
     .hidden { display: none !important; }
-    .small { font-size: .8rem; color: var(--ink-3); }
-    .lang-sw { background: none; border: 1px solid var(--border); border-radius: 999px; padding: .32rem .85rem;
-               cursor: pointer; font: inherit; font-size: .8rem; color: var(--ink-2); }
-    .lang-sw:hover { border-color: var(--navy-2); color: var(--navy); }
+    .small { font-size: .8rem; color: var(--card-text-3); }
+    .lang-sw { background: none; border: 1px solid var(--line); border-radius: 999px; padding: .32rem .85rem;
+               cursor: pointer; font: inherit; font-size: .8rem; color: var(--text-2); }
+    .lang-sw:hover { border-color: var(--cyan); color: var(--cyan); }
 
-    /* footer */
-    footer { border-top: 1px solid var(--border); background: #fff; margin-top: 2rem; }
-    .foot { max-width: 1080px; margin: 0 auto; padding: 1.6rem 1.5rem 1.9rem; display: flex;
+    /* ───────────── 页脚 ───────────── */
+    footer { border-top: 1px solid var(--line); margin-top: 2.4rem; }
+    .foot { max-width: 1120px; margin: 0 auto; padding: 1.7rem 1.5rem 2rem; display: flex;
             align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-    .foot .brand-logo { height: 30px; opacity: .9; }
-    .foot .legal { color: var(--ink-3); font-size: .78rem; text-align: right; line-height: 1.7; }
+    .foot .brand-logo { height: 26px; opacity: .92; }
+    .foot .legal { color: var(--text-3); font-size: .78rem; text-align: right; line-height: 1.7; }
 
-    /* modal / 3D viewer */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(10,22,40,.72); z-index: 200;
-                     display: flex; align-items: center; justify-content: center; padding: 2rem; }
-    .modal { background: #fff; border-radius: var(--radius-lg); width: min(860px, 100%);
-             box-shadow: var(--shadow-hover); overflow: hidden; }
+    /* ───────────── 3D 查看器弹窗 ───────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(5,8,15,.82); z-index: 200;
+                     display: flex; align-items: center; justify-content: center; padding: 2rem; backdrop-filter: blur(4px); }
+    .modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+             width: min(860px, 100%); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
     .modal-head { display: flex; align-items: center; justify-content: space-between;
-                  padding: .8rem 1.2rem; border-bottom: 1px solid var(--border); }
-    .modal-head h3 { margin: 0; color: var(--navy); font-size: 1rem; }
-    .modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--ink-2); }
+                  padding: .8rem 1.2rem; border-bottom: 1px solid var(--line); }
+    .modal-head h3 { margin: 0; color: var(--text); font-size: 1rem; }
+    .modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-2); }
     .modal-close:hover { color: var(--err); }
-    #viewport { width: 100%; height: 500px; background: #0A1628; }
+    #viewport { width: 100%; height: 500px; background: #060a12; }
+    #viewerHint { color: var(--text-3); }
 
-    @media (max-width: 640px) {
+    /* ───────────── 滚动渐显 ───────────── */
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    @media (max-width: 820px) {
+      .hero { flex-direction: column; align-items: flex-start; min-height: 0; }
+      .hero-art { flex: 0 0 auto; max-width: 70vw; order: -1; }
+      .hero h1 { font-size: 2.3rem; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .flip-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
       .brand-sep, .brand-name .sub { display: none; }
-      .brand-logo { height: 30px; }
-      .hero h1 { font-size: 2.1rem; }
-      .hero-inner { padding: 2.2rem 1.4rem 2rem; }
       .hdr { padding: 8px 16px; }
+      .stats { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
 <body>
+  <canvas id="particles"></canvas>
+  <div class="grid-bg"></div>
+
   <header>
     <div class="hdr">
       <a class="brand" href="/">
-        <img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" />
+        <span class="logo-chip"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></span>
         <span class="brand-sep"></span>
         <span class="brand-name">
-          <span class="name">BindForge</span>
-          <span class="sub">蛋白结合剂设计平台</span>
+          <span class="name"><span class="co">无界计算</span><span class="product">BindForge</span></span>
+          <span class="sub">AI 驱动的蛋白结合剂设计平台</span>
         </span>
       </a>
       <div class="hdr-actions">
-        <span class="pill pill-gold hidden" id="quotaChip">今日免费任务 0/2</span>
+        <span class="pill pill-purple hidden" id="quotaChip">今日免费任务 0/2</span>
         <span class="user-chip hidden" id="userChip"></span>
         <button class="lang-sw" id="langBtn" title="切换语言 / Switch language">中 / EN</button>
         <button class="btn btn-ghost hidden" id="logoutBtn" style="padding:.42rem 1.1rem">退出</button>
@@ -241,10 +338,10 @@
     </div>
   </header>
 
-  <!-- ─── AUTH VIEW ─── -->
+  <!-- ─── 登录 / 注册 ─── -->
   <div class="auth-wrap hidden" id="authView">
     <div class="auth-card">
-      <div class="auth-brand"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></div>
+      <div class="auth-brand"><span class="logo-chip"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></span></div>
       <h2 id="authTitle">登录平台</h2>
       <div class="sub" id="authSub">登录后使用蛋白结合剂设计工具</div>
       <div class="auth-tabs">
@@ -261,43 +358,158 @@
     </div>
   </div>
 
-  <!-- ─── APP VIEW ─── -->
+  <!-- ─── 应用主视图 ─── -->
   <div class="wrap hidden" id="appView">
+
+    <!-- Hero：大标题 + 打字副标题 + CTA + 科技图形 -->
     <div class="hero">
-      <div class="hero-inner">
-        <span class="eyebrow">UniBindMD 无界计算生物科技</span>
-        <h1>BindForge<span class="dot">.</span></h1>
-        <p class="lead">蛋白结合剂 <b style="font-weight:500;color:#fff">序列设计、结构预测（Boltz-2 / Chai-1）与 MD 稳定性验证</b> 一体化流程，云端 API 计算，无需本地 GPU。</p>
-        <div class="hero-tags">
-          <span class="tag"><b>01</b> de novo 序列设计</span>
-          <span class="tag"><b>02</b> 开源 AlphaFold3 替代预测</span>
-          <span class="tag"><b>03</b> OpenMM MD 稳定性验证</span>
+      <div class="hero-copy">
+        <span class="eyebrow">UNIBINDMD 无界计算生物科技</span>
+        <h1>AI 驱动的<span class="grad">蛋白结合剂设计</span></h1>
+        <p class="type-line"><span id="typed"></span><span class="cursor"></span></p>
+        <div class="hero-cta">
+          <button class="btn btn-primary" id="ctaStart">立即体验</button>
+          <a class="btn btn-ghost" href="mailto:contact@unibindmd.tech">联系销售</a>
+        </div>
+      </div>
+      <div class="hero-art">
+        <svg viewBox="0 0 400 400" fill="none">
+          <defs>
+            <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#00d4ff"/><stop offset="1" stop-color="#7b2ffc"/>
+            </linearGradient>
+          </defs>
+          <!-- 分子网络连线 -->
+          <g stroke="url(#edge)" stroke-width="1.4" opacity=".55">
+            <line x1="200" y1="200" x2="130" y2="120"/>
+            <line x1="200" y1="200" x2="270" y2="120"/>
+            <line x1="200" y1="200" x2="120" y2="260"/>
+            <line x1="200" y1="200" x2="280" y2="260"/>
+            <line x1="200" y1="200" x2="200" y2="80"/>
+            <line x1="200" y1="200" x2="200" y2="320"/>
+            <line x1="130" y1="120" x2="200" y2="80"/>
+            <line x1="270" y1="120" x2="200" y2="80"/>
+            <line x1="120" y1="260" x2="200" y2="320"/>
+            <line x1="280" y1="260" x2="200" y2="320"/>
+            <line x1="130" y1="120" x2="80" y2="60"/>
+            <line x1="270" y1="120" x2="320" y2="60"/>
+            <line x1="120" y1="260" x2="70" y2="330"/>
+            <line x1="280" y1="260" x2="330" y2="330"/>
+          </g>
+          <!-- 分子节点 -->
+          <g class="node"><circle cx="200" cy="200" r="14" fill="#00d4ff"/><circle cx="200" cy="200" r="20" stroke="#00d4ff" stroke-width="1.2" opacity=".5"/></g>
+          <circle class="node" cx="130" cy="120" r="9" fill="#7b2ffc"/>
+          <circle class="node" cx="270" cy="120" r="9" fill="#7b2ffc"/>
+          <circle class="node" cx="120" cy="260" r="9" fill="#7b2ffc"/>
+          <circle class="node" cx="280" cy="260" r="9" fill="#7b2ffc"/>
+          <circle class="node" cx="200" cy="80" r="7" fill="#00d4ff"/>
+          <circle class="node" cx="200" cy="320" r="7" fill="#00d4ff"/>
+          <circle class="node" cx="80" cy="60" r="5" fill="#5a9bff"/>
+          <circle class="node" cx="320" cy="60" r="5" fill="#5a9bff"/>
+          <circle class="node" cx="70" cy="330" r="5" fill="#5a9bff"/>
+          <circle class="node" cx="330" cy="330" r="5" fill="#5a9bff"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 数据统计 -->
+    <div class="stats reveal">
+      <div class="stat"><div class="stat-num" data-target="3" data-suffix="">3</div><div class="stat-label">步一体化流程</div></div>
+      <div class="stat"><div class="stat-num" data-target="500" data-suffix="">500</div><div class="stat-label">aa 最大靶点规模</div></div>
+      <div class="stat"><div class="stat-num" data-target="4096" data-suffix="">4096</div><div class="stat-label">单链残基预测上限</div></div>
+      <div class="stat"><div class="stat-num" data-target="2" data-suffix="">2</div><div class="stat-label">每日免费任务</div></div>
+    </div>
+
+    <!-- 核心能力：3D 翻转卡片 -->
+    <div class="section-title"><span>核心能力 Core</span></div>
+    <div class="flip-grid">
+      <div class="flip-card reveal">
+        <div class="flip-inner">
+          <div class="flip-face flip-front">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/>
+            </svg>
+            <b>序列设计 Design</b><span>de novo 生成候选结合剂</span>
+          </div>
+          <div class="flip-face flip-back"><p>针对靶点自动生成候选结合剂序列，可设定长度、数量与热点残基，快速产出多样化的候选库。</p></div>
+        </div>
+      </div>
+      <div class="flip-card reveal">
+        <div class="flip-inner">
+          <div class="flip-face flip-front">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#7b2ffc" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="12" r="4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/>
+              <path d="M11.5 10.5L16 7M11.5 13.5L16 17"/>
+            </svg>
+            <b>结构预测 Predict</b><span>开源 AlphaFold3 替代</span>
+          </div>
+          <div class="flip-face flip-back"><p>使用 Boltz-2 / Chai-1 等开源模型折叠靶点 + 结合剂复合物，规避权重授权壁垒，输出全原子复合结构。</p></div>
+        </div>
+      </div>
+      <div class="flip-card reveal">
+        <div class="flip-inner">
+          <div class="flip-face flip-front">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12h4l2-6 4 12 2-6h6"/>
+            </svg>
+            <b>MD 验证 Validate</b><span>OpenMM 稳定性评估</span>
+          </div>
+          <div class="flip-face flip-back"><p>OpenMM 分子动力学（隐式 GBSA）验证结合剂是否保持预测构象、保留界面接触并稳定结合，据此排序候选。</p></div>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <h2><span class="step">1</span> 提交任务 / Submit</h2>
-      <label for="file">上传靶点结构（PDB / CIF / FASTA）</label>
-      <input id="file" type="file" accept=".pdb,.cif,.mmcif,.fasta,.fa,.faa,.txt" />
-      <div class="hint">或不传文件、直接粘贴靶点氨基酸序列：</div>
-      <textarea id="target" placeholder="MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP"></textarea>
-      <div class="row">
-        <div><label for="n_designs">设计数量</label><input id="n_designs" type="number" value="4" min="1" max="32" /></div>
-        <div><label for="length">结合剂长度范围</label><input id="length" value="20-25" /></div>
-        <div><label for="md_top">MD 验证 top-K</label><input id="md_top" type="number" value="2" min="0" max="10" /></div>
-        <div><label for="md_ns">MD 时长 (ns)</label><input id="md_ns" type="number" step="0.1" value="0.05" min="0.01" /></div>
+    <!-- ── 工具区：提交 → 任务 → 结果 ── -->
+    <div class="section-title"><span>开始使用 Workflow</span></div>
+
+    <div class="card reveal" id="submitCard">
+      <div class="card-head">
+        <h2><span class="step">1</span> 提交任务</h2>
+        <span class="card-sub">Submit a design job</span>
       </div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input id="dry_run" type="checkbox" checked style="width:auto" /> Dry-run（mock 服务，无需 API Key，用于流程测试）
-      </label>
-      <div class="hint" style="margin-top:.5rem">
+
+      <div class="field-group">
+        <div class="fg-title">靶点蛋白</div>
+        <label class="file-drop" for="file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/>
+          </svg>
+          <span class="fd-main">点击上传结构文件</span>
+          <span class="fd-sub">支持 PDB / CIF / mmCIF / FASTA</span>
+        </label>
+        <input id="file" class="file-input" type="file" accept=".pdb,.cif,.mmcif,.fasta,.fa,.faa,.txt" />
+        <div class="or-divider"><span>或直接粘贴靶点氨基酸序列</span></div>
+        <textarea id="target" placeholder="例如：MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP"></textarea>
+        <div class="hint" style="margin-top:.6rem">若靶点为多链复合物，可指定要设计的链 ID（多个用逗号分隔）：</div>
+        <input id="target_chain" placeholder="留空 = 全部链；例如 A 或 A,B" />
+      </div>
+
+      <div class="field-group">
+        <div class="fg-title">设计参数</div>
+        <div class="param-grid">
+          <div class="param"><label for="n_designs">设计数量</label><input id="n_designs" type="number" value="4" min="1" max="32" /><span class="unit">候选序列数</span></div>
+          <div class="param"><label for="length">结合剂长度范围</label><input id="length" value="20-25" /><span class="unit">氨基酸残基数</span></div>
+          <div class="param"><label for="md_top">MD 验证 top-K</label><input id="md_top" type="number" value="2" min="0" max="10" /><span class="unit">验证前 K 个</span></div>
+          <div class="param"><label for="md_ns">MD 时长</label><input id="md_ns" type="number" step="0.1" value="0.05" min="0.01" /><span class="unit">ns</span></div>
+        </div>
+        <div class="hint" style="margin-top:.8rem">热点残基（可选）：指定结合剂应靶向的残基编号，多个用逗号分隔：</div>
+        <input id="hotspot" placeholder="留空 = 自动；例如 10,15,20" />
+      </div>
+
+      <div class="submit-bar">
+        <label class="switch">
+          <input id="dry_run" type="checkbox" checked />
+          <span class="track"></span>
+          <span>Dry-run 流程测试 <span class="switch-note">（mock 服务，无需 API Key）</span></span>
+        </label>
+        <button class="btn btn-purple" id="submit">运行流程</button>
+      </div>
+      <div class="hint" style="margin-top: .9rem">
         靶点 ≤ 500 aa；每个账号每日 <b>2 个免费任务</b>，超出需付费（即将上线）。
       </div>
-      <button class="btn btn-gold" id="submit" style="margin-top:1.1rem">运行流程 / Run pipeline</button>
     </div>
 
-    <div class="card">
+    <div class="card reveal">
       <h2><span class="step">2</span> 我的任务 / Jobs</h2>
       <table id="jobs">
         <thead><tr><th>任务 ID</th><th>状态</th><th>结果数</th><th>操作</th></tr></thead>
@@ -305,7 +517,7 @@
       </table>
     </div>
 
-    <div class="card" id="resultsCard">
+    <div class="card reveal" id="resultsCard">
       <h2><span class="step">3</span> 结果 / Results <span id="resultJobId" class="mono result-jobid"></span></h2>
       <div id="error"></div>
       <p class="empty" id="resultsEmpty">提交任务并点击「查看」后，排序结果与 3D 结构将显示在这里。</p>
@@ -319,27 +531,7 @@
       <div class="log hidden" id="log"></div>
     </div>
 
-    <div class="section-divider"><span>了解 BindForge</span></div>
-
-    <div class="card card-info">
-      <h2>流程说明 / How it works</h2>
-      <div class="pipeline">
-        <div class="pipe-step">
-          <span class="pipe-n">1</span>
-          <div class="pipe-body"><b>设计 Design</b><span>生成候选结合剂序列（de novo）</span></div>
-        </div>
-        <div class="pipe-step">
-          <span class="pipe-n">2</span>
-          <div class="pipe-body"><b>预测 Predict</b><span>开源 AlphaFold3 替代（Boltz-2 / Chai-1）折叠复合体</span></div>
-        </div>
-        <div class="pipe-step">
-          <span class="pipe-n">3</span>
-          <div class="pipe-body"><b>验证 Validate</b><span>OpenMM MD（隐式 GBSA）测稳定性并排序</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card card-info">
+    <div class="card card-info reveal">
       <h2>适用范围与限制 / Scope &amp; limits</h2>
       <table class="note-table">
         <thead><tr><th>项目</th><th>限制说明</th></tr></thead>
@@ -360,7 +552,7 @@
 
     <footer>
       <div class="foot">
-        <img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" />
+        <span class="logo-chip"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></span>
         <div class="legal">
           © 2026 深圳市无界计算生物科技有限公司 UniBindMD Biotech<br />
           BindForge 蛋白结合剂设计平台 &nbsp;|&nbsp; 粤ICP备2026102804号
@@ -369,7 +561,7 @@
     </footer>
   </div>
 
-  <!-- ─── 3D viewer modal ─── -->
+  <!-- ─── 3D 查看器 ─── -->
   <div class="modal-overlay hidden" id="viewerOverlay">
     <div class="modal">
       <div class="modal-head">
@@ -377,7 +569,7 @@
         <button class="modal-close" id="viewerClose" title="关闭">×</button>
       </div>
       <div id="viewport"></div>
-      <div class="modal-head" style="border-top:1px solid var(--border);border-bottom:0;padding:.5rem 1.2rem">
+      <div class="modal-head" style="border-top:1px solid var(--line);border-bottom:0;padding:.5rem 1.2rem">
         <span class="small" id="viewerHint">拖拽旋转，滚轮缩放，右键平移</span>
       </div>
     </div>
@@ -455,6 +647,10 @@
         md_ns: parseFloat($('md_ns').value) || 5.0,
         dry_run: $('dry_run').checked,
       };
+      const hotspot = $('hotspot').value.trim();
+      const target_chain = $('target_chain').value.trim();
+      if (hotspot) params.hotspot = hotspot;
+      if (target_chain) params.target_chain = target_chain;
       try {
         let j;
         if (file) {
@@ -540,7 +736,7 @@
 
     function initStage() {
       if (typeof NGL === 'undefined') return;
-      _stage = new NGL.Stage('viewport', { backgroundColor: '#0A1628' });
+      _stage = new NGL.Stage('viewport', { backgroundColor: '#060a12' });
       _stage.setParameters({ clipNear: 0, clipFar: 100, fogNear: 40, fogFar: 80 });
       window.addEventListener('resize', () => _stage.handleResize(), { passive: true });
     }
@@ -566,6 +762,7 @@
     $('tabLogin').onclick = () => setAuthMode('login');
     $('tabRegister').onclick = () => setAuthMode('register');
     $('langBtn').onclick = () => { lang = lang === 'zh' ? 'en' : 'zh'; localStorage.setItem('bf_lang', lang); applyLang(); };
+    $('ctaStart').onclick = () => $('submitCard').scrollIntoView({ behavior: 'smooth' });
 
     function setAuthMode(m) {
       authMode = m;
@@ -578,6 +775,80 @@
       $('authMsg').textContent = '';
     }
     function applyLang() { /* 界面主要中文；英文切换为后续项 */ }
+
+    // ── 粒子背景（Canvas） ──
+    (function () {
+      const c = $('particles'), ctx = c.getContext('2d');
+      let W, H, pts = [];
+      function resize() { W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
+      resize(); window.addEventListener('resize', resize);
+      const N = Math.min(80, Math.floor(W / 16));
+      for (let i = 0; i < N; i++) pts.push({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - .5) * .4, vy: (Math.random() - .5) * .4,
+        r: Math.random() * 1.6 + .4,
+      });
+      (function tick() {
+        ctx.clearRect(0, 0, W, H);
+        for (const p of pts) {
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < 0 || p.x > W) p.vx *= -1;
+          if (p.y < 0 || p.y > H) p.vy *= -1;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283);
+          ctx.fillStyle = 'rgba(0,212,255,.45)'; ctx.fill();
+        }
+        for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+          const a = pts[i], b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+          if (d2 < 120 * 120) {
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = 'rgba(123,47,252,' + (0.12 * (1 - d2 / 14400)) + ')'; ctx.stroke();
+          }
+        }
+        requestAnimationFrame(tick);
+      })();
+    })();
+
+    // ── 打字机效果 ──
+    (function () {
+      const el = $('typed');
+      const phrases = ['AI 驱动的一体化蛋白结合剂设计', '序列设计、结构预测、MD 稳定性验证', '云端 API 计算，无需本地 GPU'];
+      let pi = 0, ci = 0, del = false;
+      (function type() {
+        const t = phrases[pi];
+        el.textContent = t.slice(0, ci);
+        if (!del) { if (++ci > t.length) { del = true; return setTimeout(type, 1800); } }
+        else { if (--ci === 0) { del = false; pi = (pi + 1) % phrases.length; } }
+        setTimeout(type, del ? 32 : 78);
+      })();
+    })();
+
+    // ── 滚动渐显 + 数字滚动 ──
+    (function () {
+      const io = new IntersectionObserver((es) => es.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+      }), { threshold: .12 });
+      document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+      const ioN = new IntersectionObserver((es) => es.forEach((e) => {
+        if (e.isIntersecting) { animateNum(e.target); ioN.unobserve(e.target); }
+      }), { threshold: .5 });
+      document.querySelectorAll('.stat-num').forEach((el) => ioN.observe(el));
+
+      function animateNum(el) {
+        const target = parseInt(el.dataset.target, 10);
+        const dur = 1500, t0 = performance.now();
+        (function step(now) {
+          const p = Math.min(1, (now - t0) / dur);
+          el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+          if (p < 1) requestAnimationFrame(step);
+        })(t0);
+      }
+    })();
+
+    // ── 移动端翻转卡片点击切换 ──
+    document.querySelectorAll('.flip-card').forEach((c) => {
+      c.addEventListener('click', () => c.classList.toggle('flipped'));
+    });
 
     loadMe();
   </script>

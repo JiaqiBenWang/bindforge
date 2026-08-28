@@ -114,6 +114,8 @@ def render_slurm_script(
     cmd += ["--length", str(run_args.get("length", "50-80"))]
     if run_args.get("hotspot"):
         cmd += ["--hotspot", str(run_args["hotspot"])]
+    if run_args.get("target_chain"):
+        cmd += ["--target-chain", str(run_args["target_chain"])]
     if run_args.get("design_provider"):
         cmd += ["--design-provider", str(run_args["design_provider"])]
     if run_args.get("structure_provider"):

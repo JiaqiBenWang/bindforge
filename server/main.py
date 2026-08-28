@@ -76,6 +76,7 @@ class JobRequest(BaseModel):
     n_designs: int = 8
     length: str = "50-80"
     hotspot: Optional[str] = None
+    target_chain: Optional[str] = None
     design_provider: str = "mock"
     structure_provider: str = "mock"
     md_top: int = 2
@@ -151,6 +152,7 @@ def _run_local_job(job_id: str, req: JobRequest) -> None:
                 length_min=length_min,
                 length_max=length_max,
                 hotspot=req.hotspot,
+                target_chain=req.target_chain,
                 design_provider=req.design_provider,
                 structure_provider=req.structure_provider,
                 md_top=req.md_top,
@@ -285,6 +287,7 @@ def create_app() -> FastAPI:
         n_designs: int = Form(8),
         length: str = Form("50-80"),
         hotspot: Optional[str] = Form(None),
+        target_chain: Optional[str] = Form(None),
         md_top: int = Form(2),
         md_ns: float = Form(5.0),
         dry_run: bool = Form(True),
@@ -301,6 +304,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=429, detail=str(exc))
         req = JobRequest(
             target=path, n_designs=n_designs, length=length, hotspot=hotspot,
+            target_chain=target_chain,
             md_top=md_top, md_ns=md_ns, dry_run=dry_run, seed=seed,
         )
         _JOBS[job_id] = {

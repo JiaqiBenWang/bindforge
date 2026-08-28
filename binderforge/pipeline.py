@@ -36,8 +36,20 @@ def load_target_sequence(target: str) -> str:
     return raw
 
 
-def _resolve_target(target: str, work_dir: str) -> Tuple[str, Optional[str]]:
-    """Return (sequence, structure_path). Builds a target PDB if none is given."""
+def _resolve_target(target: str, work_dir: str, target_chain: Optional[str] = None) -> Tuple[str, Optional[str]]:
+    """Return (sequence, structure_path). Builds a target PDB if none is given.
+
+    If ``target_chain`` names specific chain IDs (e.g. ``"A"`` or ``"A,B"``),
+    a structure target is first filtered down to those chains, so a multi-chain
+    input is reduced to the chain(s) the binder should actually target.
+    """
+    if target_chain and os.path.isfile(target):
+        low = target.lower()
+        if low.endswith((".pdb", ".cif", ".mmcif")):
+            filtered = os.path.join(work_dir, "target_selected.pdb")
+            io.select_pdb_chains(target, target_chain, filtered)
+            target = filtered
+
     seq = load_target_sequence(target)
 
     struct_path: Optional[str] = None
@@ -88,6 +100,7 @@ def run_pipeline(
     length_min: int = 50,
     length_max: int = 80,
     hotspot: Optional[str] = None,
+    target_chain: Optional[str] = None,
     design_provider: str = "mock",
     structure_provider: str = "mock",
     md_top: int = 2,
@@ -100,7 +113,7 @@ def run_pipeline(
 ) -> Dict:
     """Run the full pipeline. Returns a summary dict (also written to disk)."""
     os.makedirs(results_dir, exist_ok=True)
-    seq, struct_path = _resolve_target(target, results_dir)
+    seq, struct_path = _resolve_target(target, results_dir, target_chain=target_chain)
 
     if dry_run:
         design_provider = "mock"

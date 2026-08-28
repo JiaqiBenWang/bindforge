@@ -31,6 +31,7 @@ def _cmd_run(args):
         length_min=length_min,
         length_max=length_max,
         hotspot=args.hotspot,
+        target_chain=args.target_chain,
         design_provider=args.design_provider,
         structure_provider=args.structure_provider,
         md_top=args.md_top,
@@ -126,6 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--n-designs", type=int, default=8)
     r.add_argument("--length", default="50-80", help="Binder length range, e.g. 50-80")
     r.add_argument("--hotspot", default=None, help="Optional hotspot residue indices")
+    r.add_argument("--target-chain", default=None, help="Restrict target to these chain IDs (e.g. A or A,B)")
     r.add_argument("--design-provider", default="mock")
     r.add_argument("--structure-provider", default="mock")
     r.add_argument("--md-top", type=int, default=2, help="Number of top candidates to MD-validate")
