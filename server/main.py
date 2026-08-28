@@ -20,7 +20,7 @@ from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from binderforge import auth
+from binderforge import auth, remote
 from binderforge.config import Config
 from binderforge.pipeline import load_target_sequence, run_pipeline
 
@@ -29,6 +29,10 @@ _JOBS: Dict[str, dict] = {}
 _UPLOAD_DIR = "uploads"
 _ALLOWED_SUFFIXES = (".pdb", ".cif", ".mmcif", ".fasta", ".fa", ".faa", ".txt")
 _MAX_TARGET_RESIDUES = 500  # business rule: free tier targets must be ≤ 500 aa
+
+# "local" runs the pipeline in-process; "slurm" submits to a remote cluster
+# (Beijing supercomputer) over SSH + Slurm. See binderforge/remote.py.
+_COMPUTE_BACKEND = os.environ.get("BINDFORGE_COMPUTE", "local").strip().lower()
 
 _DATA_DIR = os.environ.get("BINDFORGE_DATA_DIR", "data")
 _STORE = auth.AuthStore(os.path.join(_DATA_DIR, "users.db"))
@@ -72,6 +76,8 @@ class JobRequest(BaseModel):
     n_designs: int = 8
     length: str = "50-80"
     hotspot: Optional[str] = None
+    design_provider: str = "mock"
+    structure_provider: str = "mock"
     md_top: int = 2
     md_ns: float = 5.0
     dry_run: bool = True
@@ -116,7 +122,20 @@ def _set_cookie(response: Response, token: str) -> None:
                         max_age=auth._TOKEN_TTL_SECONDS, path="/")
 
 
-def _run_job(job_id: str, req: JobRequest) -> None:
+def _materialize_target(target: str, job_id: str) -> tuple:
+    """Return (local_path, remote_name) for a target (file or raw sequence)."""
+    if os.path.isfile(target):
+        return target, os.path.basename(target)
+    seq = load_target_sequence(target)  # validates the raw sequence
+    d = os.path.join(_UPLOAD_DIR, job_id)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "target.fasta")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f">target\n{seq}\n")
+    return path, "target.fasta"
+
+
+def _run_local_job(job_id: str, req: JobRequest) -> None:
     job = _JOBS[job_id]
     try:
         job["status"] = "running"
@@ -132,6 +151,8 @@ def _run_job(job_id: str, req: JobRequest) -> None:
                 length_min=length_min,
                 length_max=length_max,
                 hotspot=req.hotspot,
+                design_provider=req.design_provider,
+                structure_provider=req.structure_provider,
                 md_top=req.md_top,
                 md_ns=req.md_ns,
                 dry_run=req.dry_run,
@@ -146,6 +167,35 @@ def _run_job(job_id: str, req: JobRequest) -> None:
     except Exception as exc:  # noqa: BLE001 — surface the error to the client
         job["status"] = "failed"
         job["error"] = str(exc)
+
+
+def _run_remote_job(job_id: str, req: JobRequest) -> None:
+    job = _JOBS[job_id]
+    try:
+        job["status"] = "running"
+        cfg = remote.SlurmConfig.from_env()
+        target_local, target_remote = _materialize_target(req.target, job_id)
+
+        def _on_status(state: str, log: str) -> None:
+            if log:
+                job["logs"] = log
+
+        summary = remote.run_remote_job(
+            job_id, target_local, target_remote, req.dict(), cfg=cfg, on_status=_on_status
+        )
+        job["status"] = "done"
+        job["result"] = summary.get("results", [])
+        job["meta"] = {"remote": True, "slurm_id": summary.get("slurm_id")}
+    except Exception as exc:  # noqa: BLE001 — surface the error to the client
+        job["status"] = "failed"
+        job["error"] = str(exc)
+
+
+def _run_job(job_id: str, req: JobRequest) -> None:
+    if _COMPUTE_BACKEND == "slurm":
+        _run_remote_job(job_id, req)
+    else:
+        _run_local_job(job_id, req)
 
 
 def _save_upload(upload: UploadFile, job_id: str) -> str:

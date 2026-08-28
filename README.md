@@ -20,6 +20,7 @@ cd bindforge
 pip install -e .            # core
 pip install -e ".[md]"      # + OpenMM (MD validation)
 pip install -e ".[web]"     # + FastAPI/uvicorn (web UI)
+pip install -e ".[remote]"  # + paramiko (SSH + Slurm offload)
 ```
 
 Requires Python ≥ 3.8.
@@ -105,8 +106,44 @@ Post-translational modifications (glycosylation, phosphorylation, …) are **not
 modeled in the MD stage** — non-standard residues are stripped before
 simulation; only the 20 standard amino acids (plus MSE/SEP/TPO) are kept.
 
-The backend runs the same `binderforge.pipeline` code in a background thread; a
-3D (NGL/Mol*) structure viewer is the planned upgrade path.
+The backend runs the same `binderforge.pipeline` code in a background thread. A
+3D (NGL) structure viewer lets you inspect each predicted complex in the browser.
+
+---
+
+## Offloading to a supercomputer (SSH + Slurm)
+
+By default the web server runs jobs **in-process**. To send jobs to a remote
+cluster (e.g. a purchased HPC node at 北京超算), set `BINDFORGE_COMPUTE=slurm`
+and install `.[remote]`. Every job is then uploaded to the cluster, submitted
+via `sbatch`, polled, and its `ranking.json` + complex PDBs pulled back — the
+web UI, quota and 3D viewer work unchanged.
+
+```bash
+pip install -e ".[remote]"
+export BINDFORGE_COMPUTE=slurm
+
+export BINDFORGE_SLURM_HOST=login01.hpc.ac.cn
+export BINDFORGE_SLURM_USER=wang
+export BINDFORGE_SLURM_KEY=~/.ssh/id_ed25519     # or BINDFORGE_SLURM_PASSWORD
+
+# optional queue / environment
+export BINDFORGE_SLURM_PARTITION=gpu             # Slurm --partition
+export BINDFORGE_SLURM_GRES=gpu:1                # Slurm --gres
+export BINDFORGE_SLURM_TIME=02:00:00
+export BINDFORGE_SLURM_CPUS=8
+export BINDFORGE_SLURM_CONDA=bindforge           # conda env with bindforge installed
+export BINDFORGE_SLURM_MODULES="cuda/12,openmm"  # or module load <these>
+export BINDFORGE_SLURM_REMOTE_DIR=bindforge_jobs # job dir under $HOME
+
+bindforge serve
+```
+
+The cluster must have `binderforge` installed on `PATH` (in the `conda_env` if
+set) and, for real runs, the provider API keys in its environment/`.env`. The
+generated sbatch script is produced by `binderforge/remote.py`:
+`render_slurm_script()` (pure, unit-tested) and `SlurmBackend` (paramiko
+transport — submit / poll / download).
 
 ---
 
@@ -142,6 +179,7 @@ binderforge/
   pipeline.py        # orchestration
   schemas.py         # dataclasses (Binder / ComplexPrediction / MDResult)
   config.py          # env/.env config
+  remote.py          # SSH + Slurm compute offload (paramiko)
   io.py              # FASTA/PDB parsing + full-atom peptide builder
   scoring.py         # composite scoring & ranking
   providers/         # design + structure provider adapters (mock / nvidia_nim / boltzbio / chai)
