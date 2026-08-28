@@ -32,6 +32,11 @@
     .err { color:#f87171; white-space:pre-wrap; }
     .mono { font-family: ui-monospace, monospace; font-size:.8rem; word-break:break-all; }
     .pill { display:inline-block; padding:.1rem .5rem; border-radius:999px; background:#334155; }
+    .hint { color: var(--muted); font-size:.8rem; margin:.25rem 0 0; }
+    .log { background:#0b1220; border:1px solid #334155; border-radius:8px; padding:.6rem .8rem;
+           font-family: ui-monospace, monospace; font-size:.75rem; color:#7dd3fc;
+           max-height:180px; overflow:auto; white-space:pre-wrap; margin-top:.75rem; }
+    .val-yes { color:#4ade80; font-weight:600; } .val-no { color:#64748b; }
   </style>
 </head>
 <body>
@@ -40,8 +45,10 @@
     <p class="sub">Binder sequence design → structure prediction (Boltz-2 / Chai-1) → MD stability validation.</p>
 
     <div class="card">
-      <label for="target">Target protein (FASTA/PDB/CIF path, or raw sequence)</label>
-      <textarea id="target">MKTAYIAKQRQISFVK</textarea>
+      <label for="file">Target structure — upload a PDB / CIF / FASTA file</label>
+      <input id="file" type="file" accept=".pdb,.cif,.mmcif,.fasta,.fa,.faa,.txt" />
+      <div class="hint">…or paste a raw amino-acid sequence instead of uploading (used only when no file is chosen):</div>
+      <textarea id="target" placeholder="MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP"></textarea>
       <div class="row">
         <div><label for="n_designs">Designs</label><input id="n_designs" type="number" value="4" /></div>
         <div><label for="length">Length range</label><input id="length" value="20-25" /></div>
@@ -65,42 +72,63 @@
       <div id="error"></div>
       <table id="results">
         <thead><tr>
-          <th>#</th><th>Binder</th><th>Length</th><th>Score</th><th>Conf</th>
-          <th>ipTM</th><th>RMSD (nm)</th><th>Contact</th><th>dG</th><th>Sequence</th>
+          <th>#</th><th>Binder</th><th>Len</th><th>Score</th><th>Conf</th>
+          <th>MD</th><th>ipTM</th><th>RMSD (nm)</th><th>Contact</th><th>dG</th><th>Sequence</th>
         </tr></thead>
         <tbody></tbody>
       </table>
+      <div class="log" id="log" style="display:none"></div>
     </div>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const fmt = (v, d = 3) => (v === null || v === undefined) ? '—' : (typeof v === 'number' ? v.toFixed(d) : v);
 
     async function submitJob() {
-      const body = {
-        target: $('target').value.trim(),
+      const file = $('file').files[0];
+      const params = {
         n_designs: parseInt($('n_designs').value) || 8,
         length: $('length').value || '50-80',
         md_top: parseInt($('md_top').value) || 2,
         md_ns: parseFloat($('md_ns').value) || 5.0,
         dry_run: $('dry_run').checked,
       };
-      const r = await fetch('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-      const j = await r.json();
-      $('submit').disabled = true;
-      pollJob(j.id);
-      $('submit').disabled = false;
+      let j;
+      if (file) {
+        const fd = new FormData();
+        fd.append('file', file);
+        for (const [k, v] of Object.entries(params)) fd.append(k, v);
+        const r = await fetch('/api/upload', { method: 'POST', body: fd });
+        j = await r.json();
+      } else {
+        const seq = $('target').value.trim();
+        if (!seq) { alert('Upload a structure file, or paste a target sequence.'); return; }
+        const r = await fetch('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ target: seq, ...params }) });
+        j = await r.json();
+      }
+      if (j.id) pollJob(j.id);
     }
 
     async function pollJob(id) {
       const r = await fetch('/api/jobs/' + id);
       const j = await r.json();
       refreshJobs();
-      if (j.status === 'done' || j.status === 'failed') {
-        showResult(id, j);
-        return;
-      }
+      showProgress(id, j);
+      if (j.status === 'done' || j.status === 'failed') { showResult(id, j); return; }
       setTimeout(() => pollJob(id), 2000);
+    }
+
+    function showProgress(id, j) {
+      const log = $('log');
+      if (j.logs && j.logs.trim()) {
+        $('resultsCard').style.display = 'block';
+        $('resultJobId').textContent = id;
+        log.style.display = 'block';
+        log.textContent = j.logs;
+        log.scrollTop = log.scrollHeight;
+      }
     }
 
     async function refreshJobs() {
@@ -123,11 +151,14 @@
       const tbody = $('results').querySelector('tbody'); tbody.innerHTML = '';
       for (const row of (j.result || [])) {
         const tr = document.createElement('tr');
+        const md = row.validated
+          ? `<span class="val-yes">✓</span>`
+          : `<span class="val-no">—</span>`;
         tr.innerHTML = `<td>${row.rank}</td><td class="mono">${row.binder_id}</td>
-          <td>${row.length}</td><td>${row.score}</td><td>${row.confidence}</td>
-          <td>${row.ipTM ?? ''}</td><td>${row.md_rmsd_mean ?? ''}</td>
-          <td>${row.md_contact_retention ?? ''}</td><td>${row.md_dG ?? ''}</td>
-          <td class="mono">${row.sequence}</td>`;
+          <td>${row.length}</td><td>${fmt(row.score)}</td><td>${fmt(row.confidence)}</td>
+          <td>${md}</td><td>${fmt(row.ipTM, 2)}</td><td>${fmt(row.md_rmsd_mean, 2)}</td>
+          <td>${row.md_contact_retention === null ? '—' : (row.md_contact_retention * 100).toFixed(0) + '%'}</td>
+          <td>${fmt(row.md_dG, 1)}</td><td class="mono">${row.sequence}</td>`;
         tbody.appendChild(tr);
       }
     }

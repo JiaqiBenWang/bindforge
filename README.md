@@ -91,9 +91,11 @@ pip install -e ".[web]"
 bindforge serve            # http://127.0.0.1:8000
 ```
 
-Submit a target + parameters, watch the job progress, and inspect the ranked
-results table. The backend runs the same `binderforge.pipeline` code in a
-background thread; a React/NGI structure viewer is the planned upgrade path.
+Open that URL in a browser, **upload a target PDB / CIF / FASTA** (or paste a
+raw sequence), set the parameters, and hit *Run pipeline*. The UI shows live MD
+progress, a job list, and the ranked results table with per-component scores.
+The backend runs the same `binderforge.pipeline` code in a background thread; a
+3D (NGL/Mol*) structure viewer is the planned upgrade path.
 
 ---
 
@@ -110,8 +112,14 @@ score = 0.35·confidence + 0.25·stability + 0.25·binding + 0.15·pose
 - **binding** — `-ΔG / 40` from MM-GBSA (kJ/mol).
 - **pose** — `exp(-RMSD_mean / 0.5)` (did the binder drift from its predicted pose?).
 
-MD metrics per candidate: binder RMSD (vs. predicted pose), interface contact
-retention, MM-GBSA ΔG estimate, and per-residue RMSF. See `binderforge/md/`.
+Component scores are `null` (not zero) when the underlying quantity was not
+measured — a failed MD run, or a starting pose with no interface to track. The
+composite is renormalised over the measured components, and MD-validated
+candidates are always ranked ahead of unvalidated ones.
+
+MD metrics per candidate: binder RMSD (vs. predicted pose, superposed on the
+target each frame), heavy-atom interface contact retention, MM-GBSA ΔG estimate,
+and per-residue RMSF. See `binderforge/md/`.
 
 ---
 

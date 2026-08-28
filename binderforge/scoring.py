@@ -19,35 +19,51 @@ def confidence_score(pred: ComplexPrediction) -> float:
     return max(0.0, min(1.0, float(np.mean(vals))))
 
 
-def stability_score(md: Optional[MDResult]) -> float:
-    """MD interface-contact retention (0..1)."""
-    if md is None:
-        return 0.0
+def stability_score(md: Optional[MDResult]) -> Optional[float]:
+    """MD interface-contact retention (0..1), or None if it was not measured."""
+    if md is None or md.contact_retention is None:
+        return None
     return max(0.0, min(1.0, md.contact_retention))
 
 
-def binding_score(md: Optional[MDResult]) -> float:
-    """Map -dG (kJ/mol) to 0..1; -40 kJ/mol maps to ~1."""
+def binding_score(md: Optional[MDResult]) -> Optional[float]:
+    """Map -dG (kJ/mol) to 0..1 (-40 kJ/mol -> ~1), or None if not measured."""
     if md is None or md.dG is None:
-        return 0.0
+        return None
     return max(0.0, min(1.0, -md.dG / 40.0))
 
 
-def pose_score(md: Optional[MDResult]) -> float:
+def pose_score(md: Optional[MDResult]) -> Optional[float]:
     """Exponential penalty on mean binder RMSD (nm); 0.5 nm characteristic scale."""
-    if md is None:
-        return 0.0
+    if md is None or md.rmsd_mean is None:
+        return None
     return float(np.exp(-md.rmsd_mean / 0.5))
 
 
-def score_candidate(pred: ComplexPrediction, md: Optional[MDResult]) -> Dict[str, float]:
-    """Combined score + per-component breakdown. Weights are tunable."""
-    conf = confidence_score(pred)
-    stab = stability_score(md)
-    bind = binding_score(md)
-    pose = pose_score(md)
-    total = 0.35 * conf + 0.25 * stab + 0.25 * bind + 0.15 * pose
-    return dict(confidence=conf, stability=stab, binding=bind, pose=pose, score=total)
+# Component weights; a component that was not measured is dropped and the
+# remaining weights are renormalised (see `score_candidate`).
+WEIGHTS = {"confidence": 0.35, "stability": 0.25, "binding": 0.25, "pose": 0.15}
+
+
+def score_candidate(pred: ComplexPrediction, md: Optional[MDResult]) -> Dict[str, object]:
+    """Combined score + per-component breakdown.
+
+    Unmeasured components (None) are excluded and the weights of the surviving
+    components are renormalised, rather than being folded in as zeros. Scoring a
+    missing measurement as 0 would punish a candidate for what we simply did not
+    run — and would let a crashed MD masquerade as a perfectly rigid pose.
+    """
+    parts = {
+        "confidence": confidence_score(pred),
+        "stability": stability_score(md),
+        "binding": binding_score(md),
+        "pose": pose_score(md),
+    }
+    available = {k: v for k, v in parts.items() if v is not None}
+    total_w = sum(WEIGHTS[k] for k in available)
+    total = (sum(WEIGHTS[k] * v for k, v in available.items()) / total_w) if total_w else 0.0
+    validated = any(parts[k] is not None for k in ("stability", "binding", "pose"))
+    return dict(parts, score=total, validated=validated)
 
 
 def rank_candidates(
@@ -55,7 +71,13 @@ def rank_candidates(
     predictions: Dict[str, ComplexPrediction],
     md_results: Dict[str, MDResult],
 ) -> List[RankedCandidate]:
-    """Rank binders by combined score (descending)."""
+    """Rank binders by combined score (descending), MD-validated candidates first.
+
+    Because unmeasured components are renormalised away rather than zeroed, a
+    candidate that never went through MD is scored on confidence alone and could
+    otherwise outrank a validated one on an incomparable basis. Sorting on
+    `validated` first keeps the candidates we actually simulated at the top.
+    """
     rows: List[RankedCandidate] = []
     for b in binders:
         pred = predictions.get(b.id)
@@ -64,7 +86,7 @@ def rank_candidates(
         comp = score_candidate(pred, md_results.get(b.id))
         rows.append(RankedCandidate(rank=0, binder=b, prediction=pred,
                                     md=md_results.get(b.id), **comp))
-    rows.sort(key=lambda r: r.score, reverse=True)
+    rows.sort(key=lambda r: (r.validated, r.score), reverse=True)
     for i, r in enumerate(rows, 1):
         r.rank = i
     return rows

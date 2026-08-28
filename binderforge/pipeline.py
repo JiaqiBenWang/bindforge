@@ -51,6 +51,11 @@ def _resolve_target(target: str, work_dir: str) -> Tuple[str, Optional[str]]:
     return seq, struct_path
 
 
+def _round(value: Optional[float], ndigits: int = 4) -> Optional[float]:
+    """Round, passing None (an unmeasured component) straight through."""
+    return None if value is None else round(value, ndigits)
+
+
 def _candidate_to_dict(r: RankedCandidate) -> dict:
     pred, md = r.prediction, r.md
     return {
@@ -58,11 +63,12 @@ def _candidate_to_dict(r: RankedCandidate) -> dict:
         "binder_id": r.binder.id,
         "sequence": r.binder.sequence,
         "length": r.binder.length,
-        "score": round(r.score, 4),
-        "confidence": round(r.confidence, 4),
-        "stability": round(r.stability, 4),
-        "binding": round(r.binding, 4),
-        "pose": round(r.pose, 4),
+        "score": _round(r.score),
+        "validated": r.validated,
+        "confidence": _round(r.confidence),
+        "stability": _round(r.stability),
+        "binding": _round(r.binding),
+        "pose": _round(r.pose),
         "ipTM": pred.ipTM,
         "pTM": pred.pTM,
         "pLDDT": pred.pLDDT,

@@ -40,16 +40,23 @@ class ComplexPrediction:
 
 @dataclass
 class MDResult:
-    """MD stability metrics for a complex."""
+    """MD stability metrics for a complex.
+
+    Every metric is Optional and ``None`` means *not measured* — the run failed,
+    or the quantity was undefined for this system (e.g. contact retention when
+    the starting pose had no interface). None is deliberately distinct from 0.0,
+    which is a real measurement meaning "fully lost"; scoring skips None
+    components instead of treating them as a zero.
+    """
 
     binder_id: Optional[str] = None
     solvent: str = "implicit"
     ns: float = 0.0
-    rmsd_final: float = 0.0          # binder RMSD vs reference pose (nm)
-    rmsd_mean: float = 0.0
-    contact_retention: float = 0.0   # fraction of initial interface contacts retained
-    dG: float = 0.0                  # MM-GBSA binding energy (kJ/mol; more negative = tighter)
-    rmsf: float = 0.0                # mean binder backbone RMSF (nm)
+    rmsd_final: Optional[float] = None   # binder RMSD vs reference pose (nm), target-superposed
+    rmsd_mean: Optional[float] = None
+    contact_retention: Optional[float] = None  # fraction of initial interface contacts retained
+    dG: Optional[float] = None           # MM-GBSA binding energy (kJ/mol; more negative = tighter)
+    rmsf: Optional[float] = None         # mean binder backbone RMSF (nm)
     rmsf_residues: Optional[List[float]] = None  # per-residue CA RMSF profile (nm)
     trajectory_path: Optional[str] = None        # path to final snapshot PDB
     converged: bool = True
@@ -58,14 +65,20 @@ class MDResult:
 
 @dataclass
 class RankedCandidate:
-    """A candidate with a combined score, ready for reporting."""
+    """A candidate with a combined score, ready for reporting.
+
+    Component scores are ``None`` when the underlying quantity was not measured;
+    `score` is renormalised over whichever components are present, and
+    `validated` records whether MD actually contributed to it.
+    """
 
     rank: int
     binder: Binder
     prediction: ComplexPrediction
     md: Optional[MDResult] = None
     score: float = 0.0
-    confidence: float = 0.0   # from ipTM/pTM (0..1)
-    stability: float = 0.0    # from MD contact retention (0..1)
-    binding: float = 0.0      # from -dG (0..1)
-    pose: float = 0.0         # from RMSD stability (0..1)
+    confidence: Optional[float] = None   # from ipTM/pTM (0..1)
+    stability: Optional[float] = None    # from MD contact retention (0..1)
+    binding: Optional[float] = None      # from -dG (0..1)
+    pose: Optional[float] = None         # from RMSD stability (0..1)
+    validated: bool = False   # did MD contribute any component to `score`?

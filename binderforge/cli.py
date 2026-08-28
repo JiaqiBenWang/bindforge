@@ -96,6 +96,13 @@ def _cmd_md(args):
 
 
 def _cmd_serve(args):
+    import os
+    # `server` is a sibling package of `binderforge` in the repo and is not
+    # installed alongside it, so add the repo root to sys.path so `bindforge
+    # serve` works regardless of the caller's working directory.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
     try:
         from server.main import create_app
     except ImportError:

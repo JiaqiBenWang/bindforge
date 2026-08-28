@@ -262,29 +262,106 @@ def build_peptide_pdb(sequence: str, path: Optional[str] = None, chain: str = "A
     return atoms
 
 
+def _xyz(atoms: List[dict]) -> np.ndarray:
+    """(n,3) coordinate array from a list of atom dicts."""
+    return np.array([[a["x"], a["y"], a["z"]] for a in atoms], dtype=float)
+
+
+def _principal_axis(xyz: np.ndarray) -> np.ndarray:
+    """Unit vector along the direction of greatest variance (the long axis)."""
+    centred = xyz - xyz.mean(axis=0)
+    _, _, Wt = np.linalg.svd(centred, full_matrices=False)
+    return Wt[0]
+
+
+def _perpendicular_to(axis: np.ndarray) -> np.ndarray:
+    """A unit vector perpendicular to `axis`, chosen deterministically."""
+    ref = np.eye(3)[int(np.argmin(np.abs(axis)))]
+    perp = np.cross(axis, ref)
+    return perp / np.linalg.norm(perp)
+
+
+def _align_vectors(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Proper rotation matrix taking unit vector `a` onto unit vector `b`."""
+    a = a / np.linalg.norm(a)
+    b = b / np.linalg.norm(b)
+    v = np.cross(a, b)
+    s = float(np.linalg.norm(v))
+    c = float(np.dot(a, b))
+    if s < 1e-8:
+        # Parallel, or antiparallel -> 180 deg about any perpendicular axis
+        # (never -I, which is a reflection and would mirror the chirality).
+        return np.eye(3) if c > 0 else _rot_axis(_perpendicular_to(a), np.pi)
+    return _rot_axis(v / s, float(np.arctan2(s, c)))
+
+
+def _closest_approach(a: np.ndarray, b: np.ndarray) -> float:
+    """Minimum distance (Å) between two heavy-atom coordinate sets."""
+    return float(np.sqrt(((a[:, None, :] - b[None, :, :]) ** 2).sum(axis=2)).min())
+
+
 def build_complex_pdb(target_pdb: str, binder_seq: str, out_path: str,
-                      binder_chain: str = "B", separation: float = 15.0) -> str:
+                      binder_chain: str = "B", contact_distance: float = 3.4) -> str:
     """Combine a target (from `target_pdb`) + a built binder into one complex PDB.
 
-    The binder is translated to sit `separation` Å to the right of the target's
-    rightmost atom (so the two chains do not overlap) and renumbered from 1 on
-    its own chain.
+    The binder is laid alongside the target (long axes aligned), spun about that
+    axis to face its densest sidechain patch toward the target, and slid in
+    until the closest heavy-atom contact is `contact_distance` Å — a side-by-side
+    pose with a real, multi-contact interface.
+
+    This matters for more than tidiness: the MD stage measures interface contact
+    retention against the *starting* pose, so a binder parked away from the
+    target gives an empty reference interface and no measurable stability. The
+    placement is rigid-body docking of a random/extended peptide, not a
+    prediction of the real bound pose; it exists so the dry-run exercises the
+    validation stage on something with a genuine interface.
     """
     target_atoms = parse_pdb(target_pdb)
     binder_atoms = build_peptide_pdb(binder_seq)
-
-    xs = [a["x"] for a in target_atoms]
-    ys = [a["y"] for a in target_atoms]
-    zs = [a["z"] for a in target_atoms]
-    cy = float(np.mean(ys)) if ys else 0.0
-    cz = float(np.mean(zs)) if zs else 0.0
-    dx = (max(xs) + separation) if xs else separation
-
     for a in binder_atoms:
         a["chain"] = binder_chain
-        a["x"] += dx
-        a["y"] += cy
-        a["z"] += cz
+
+    t_xyz = _xyz(target_atoms)
+    b_xyz = _xyz(binder_atoms)
+
+    if len(t_xyz) and len(b_xyz) > 1:
+        # 1. Spin the binder (still in its local frame) about its own long axis
+        #    and keep the orientation whose heavy atoms come closest to a probe
+        #    point off to its side — i.e. the sidechains face the eventual
+        #    interface. Then lay it alongside the target and dock once.
+        b_axis = _principal_axis(b_xyz)
+        b_centre = b_xyz.mean(axis=0)
+        probe = b_centre + _perpendicular_to(b_axis) * 15.0
+        best_angle, best_d = 0.0, np.inf
+        for k in range(24):
+            angle = 2.0 * np.pi * k / 24.0
+            cand = (b_xyz - b_centre) @ _rot_axis(b_axis, angle).T + b_centre
+            d = np.linalg.norm(cand - probe, axis=1).min()
+            if d < best_d:
+                best_d, best_angle = d, angle
+        b_xyz = (b_xyz - b_centre) @ _rot_axis(b_axis, best_angle).T + b_centre
+
+        # 2. Lay the binder alongside the target rather than end-to-end.
+        t_axis = _principal_axis(t_xyz)
+        b_xyz = (b_xyz - b_xyz.mean(axis=0)) @ _align_vectors(b_axis, t_axis).T + b_xyz.mean(axis=0)
+
+        # 3. Slide it in along a perpendicular until the chains just touch.
+        #    Closest approach grows monotonically with offset once the chains
+        #    are clear of each other, so bisection converges on the contact gap.
+        direction = _perpendicular_to(t_axis)
+        base = b_xyz + (t_xyz.mean(axis=0) - b_xyz.mean(axis=0))  # centroids coincide
+        span = float(np.ptp(t_xyz, axis=0).max() + np.ptp(b_xyz, axis=0).max())
+        lo, hi = 0.0, span + 20.0
+        for _ in range(60):
+            mid = 0.5 * (lo + hi)
+            if _closest_approach(t_xyz, base + direction * mid) < contact_distance:
+                lo = mid
+            else:
+                hi = mid
+        b_xyz = base + direction * hi
+
+        for a, xyz in zip(binder_atoms, b_xyz):
+            a["x"], a["y"], a["z"] = float(xyz[0]), float(xyz[1]), float(xyz[2])
 
     all_atoms = target_atoms + binder_atoms
     for i, a in enumerate(all_atoms, 1):

@@ -65,6 +65,13 @@ def _ca_indices(topology, chain_id: str) -> List[int]:
             if a.name == "CA" and a.residue.chain.id == chain_id]
 
 
+def _heavy_indices(topology, chain_id: str) -> List[int]:
+    """Heavy-atom (non-hydrogen) indices for a chain — used for interface contacts."""
+    return [a.index for a in topology.atoms()
+            if a.element is not None and a.element.symbol != "H"
+            and a.residue.chain.id == chain_id]
+
+
 def _coords_nm(context, indices: List[int]) -> np.ndarray:
     """Extract selected atom coordinates (nm) from the current context state."""
     pos = context.getState(getPositions=True, enforcePeriodicBox=False).getPositions()
@@ -155,6 +162,8 @@ def run_md(complex_path: str, binder_chain: str = "B", target_chain: str = "A",
             f"Could not find CA atoms for binder_chain={binder_chain!r} / "
             f"target_chain={target_chain!r} in {complex_path}."
         )
+    binder_heavy = _heavy_indices(modeller.topology, binder_chain)
+    target_heavy = _heavy_indices(modeller.topology, target_chain)
     _log(f"system ready: {system.getNumParticles()} atoms, "
          f"binder {len(binder_ca)} CA, target {len(target_ca)} CA")
 
@@ -166,9 +175,20 @@ def run_md(complex_path: str, binder_chain: str = "B", target_chain: str = "A",
         if not np.isfinite(ref_pos).all():
             raise RuntimeError("Minimization produced non-finite coordinates.")
 
-        # Reference interface contacts (CA-CA within 0.8 nm) after minimization.
+        # Reference interface contacts (heavy-atom pairs within 4.5 A) after
+        # minimization. RMSD uses CA; contacts use all heavy atoms because the
+        # interface is defined by atom packing, not backbone proximity.
         ref_target = _coords_nm(ctx, target_ca)
-        contact_mask = metrics.interface_contact_mask(ref_target, ref_pos)
+        ref_target_heavy = _coords_nm(ctx, target_heavy)
+        ref_binder_heavy = _coords_nm(ctx, binder_heavy)
+        contact_mask = metrics.interface_contact_mask(ref_target_heavy, ref_binder_heavy)
+        n_ref_contacts = int(contact_mask.sum())
+        if n_ref_contacts == 0:
+            _log("WARNING: no heavy-atom interface contacts in the starting pose "
+                 "(chains are not in contact) — contact retention is not "
+                 "measurable and will be reported as null, not 0.")
+        else:
+            _log(f"reference interface: {n_ref_contacts} heavy-atom contacts")
 
         # --- 3. NVT equilibration --------------------------------------------
         eq_steps = int(_EQ_PS * 1000.0 / dt_fs)
@@ -181,24 +201,32 @@ def run_md(complex_path: str, binder_chain: str = "B", target_chain: str = "A",
         save_steps = max(1, int(save_ps * 1000.0 / dt_fs))
         n_frames = total_steps // save_steps
 
-        binder_frames = []   # (n_frames, n_binder_ca, 3)
+        binder_frames = []   # (n_frames, n_binder_ca, 3), target-superposed
         rmsd_series = []     # per-frame binder RMSD vs reference (nm)
         retention_series = []
         for f in range(n_frames):
             integ.step(save_steps)
             b = _coords_nm(ctx, binder_ca)
             t = _coords_nm(ctx, target_ca)
-            binder_frames.append(b)
-            rmsd_series.append(metrics.ca_rmsd(ref_pos, b))
-            retention_series.append(metrics.contact_retention(contact_mask, t, b))
+            t_heavy = _coords_nm(ctx, target_heavy)
+            b_heavy = _coords_nm(ctx, binder_heavy)
+            # Superpose on the target before measuring the binder, so RMSD and
+            # RMSF report motion relative to the target rather than the free
+            # tumbling of the whole complex (nothing restrains it here).
+            b_aligned = metrics.superpose(t, ref_target, b)
+            binder_frames.append(b_aligned)
+            rmsd_series.append(metrics.ca_rmsd(ref_pos, b_aligned))
+            # Contacts are internal distances, so they need no alignment.
+            retention_series.append(metrics.contact_retention(contact_mask, t_heavy, b_heavy))
 
         binder_frames = np.asarray(binder_frames)
         rmsd_series = np.asarray(rmsd_series)
-        retention_series = np.asarray(retention_series)
 
         rmsd_final = float(rmsd_series[-1])
         rmsd_mean = float(rmsd_series.mean())
-        contact_retention_mean = float(retention_series.mean())
+        # None whenever the reference had no interface at all -> not measurable.
+        measured = [r for r in retention_series if r is not None]
+        contact_retention_mean = float(np.mean(measured)) if measured else None
         rmsf_arr = metrics.rmsf(binder_frames)  # per-residue nm
 
         # --- 5. Final snapshot + MM-GBSA --------------------------------------
@@ -216,8 +244,10 @@ def run_md(complex_path: str, binder_chain: str = "B", target_chain: str = "A",
 
         converged = bool(np.isfinite(rmsd_series).all() and rmsd_final < 2.0)
 
+        retention_str = ("n/a (no starting interface)" if contact_retention_mean is None
+                         else f"{contact_retention_mean:.2%}")
         _log(f"done: rmsd_final={rmsd_final:.3f} nm, rmsd_mean={rmsd_mean:.3f} nm, "
-             f"contact_retention={contact_retention_mean:.2%}")
+             f"contact_retention={retention_str}")
 
         return MDResult(
             binder_id=None,
@@ -235,15 +265,17 @@ def run_md(complex_path: str, binder_chain: str = "B", target_chain: str = "A",
         )
     except Exception as exc:  # noqa: BLE001 — a NaN in one candidate must not kill the run
         _log(f"MD failed: {exc}")
+        # Every metric stays None: a failed run measured nothing. Reporting 0.0
+        # here would hand the candidate a perfect pose score (exp(-0/0.5) == 1).
         return MDResult(
             binder_id=None,
             solvent=solvent,
             ns=float(ns),
-            rmsd_final=0.0,
-            rmsd_mean=0.0,
-            contact_retention=0.0,
+            rmsd_final=None,
+            rmsd_mean=None,
+            contact_retention=None,
             dG=None,
-            rmsf=0.0,
+            rmsf=None,
             rmsf_residues=None,
             trajectory_path=None,
             converged=False,
