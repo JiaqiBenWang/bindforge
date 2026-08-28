@@ -1,7 +1,9 @@
-"""FastAPI backend: submit jobs, poll status, fetch ranked results.
+"""FastAPI backend: accounts, submit jobs, poll status, fetch ranked results.
 
 Runs the BindForge pipeline in a background thread (one job at a time is fine
-for a single-process MVP) and serves a minimal single-page frontend.
+for a single-process MVP) and serves a single-page frontend. All job endpoints
+require a signed session token (email/password accounts); jobs are scoped to
+the user who created them.
 """
 
 from __future__ import annotations
@@ -14,10 +16,11 @@ import uuid
 from contextlib import redirect_stderr
 from typing import Dict, Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Response, UploadFile
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from binderforge import auth
 from binderforge.config import Config
 from binderforge.pipeline import run_pipeline
 
@@ -25,6 +28,11 @@ _JOBS: Dict[str, dict] = {}
 
 _UPLOAD_DIR = "uploads"
 _ALLOWED_SUFFIXES = (".pdb", ".cif", ".mmcif", ".fasta", ".fa", ".faa", ".txt")
+
+_DATA_DIR = os.environ.get("BINDFORGE_DATA_DIR", "data")
+_STORE = auth.AuthStore(os.path.join(_DATA_DIR, "users.db"))
+_SECRET = auth.load_secret(_DATA_DIR)
+_COOKIE_NAME = "bindforge_token"
 
 
 def _parse_length(s: str):
@@ -45,6 +53,44 @@ class JobRequest(BaseModel):
     md_ns: float = 5.0
     dry_run: bool = True
     seed: int = 0
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+def _user_id_from_headers(
+    authorization: Optional[str] = Header(default=None),
+    token: Optional[str] = Cookie(default=None, alias=_COOKIE_NAME),
+) -> str:
+    """Extract the session token (Bearer header or cookie) and validate it."""
+    raw = None
+    if authorization and authorization.lower().startswith("bearer "):
+        raw = authorization[7:].strip()
+    elif token:
+        raw = token
+    if not raw:
+        raise HTTPException(status_code=401, detail="未登录 / Not logged in")
+    user_id = auth.verify_token(_SECRET, raw)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="登录已过期，请重新登录 / Session expired")
+    return user_id
+
+
+def _public_user(user_id: str) -> dict:
+    u = _STORE.get_user(user_id)
+    return u or {"id": user_id, "email": None}
+
+
+def _set_cookie(response: Response, token: str) -> None:
+    response.set_cookie(_COOKIE_NAME, token, httponly=True, samesite="lax",
+                        max_age=auth._TOKEN_TTL_SECONDS, path="/")
 
 
 def _run_job(job_id: str, req: JobRequest) -> None:
@@ -85,7 +131,7 @@ def _save_upload(upload: UploadFile, job_id: str) -> str:
     if not name.lower().endswith(_ALLOWED_SUFFIXES):
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type. Allowed: {', '.join(_ALLOWED_SUFFIXES)}",
+            detail=f"不支持的文件类型 / Unsupported file type. Allowed: {', '.join(_ALLOWED_SUFFIXES)}",
         )
     dest_dir = os.path.join(_UPLOAD_DIR, job_id)
     os.makedirs(dest_dir, exist_ok=True)
@@ -97,17 +143,49 @@ def _save_upload(upload: UploadFile, job_id: str) -> str:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="BindForge", version="0.1.0")
+    app = FastAPI(title="BindForge", version="0.2.0")
 
+    # ── Accounts (public) ──────────────────────────────────────────────
     @app.get("/api/health")
     def health():
         return {"status": "ok", "jobs": len(_JOBS)}
 
+    @app.post("/api/register")
+    def register(req: RegisterRequest, response: Response):
+        try:
+            user_id = _STORE.create_user(req.email, req.password)
+        except auth.AuthError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        token = auth.issue_token(_SECRET, user_id)
+        _set_cookie(response, token)
+        return {"token": token, "user": _public_user(user_id)}
+
+    @app.post("/api/login")
+    def login(req: LoginRequest, response: Response):
+        try:
+            user_id = _STORE.verify_login(req.email, req.password)
+        except auth.AuthError as exc:
+            raise HTTPException(status_code=401, detail=str(exc))
+        token = auth.issue_token(_SECRET, user_id)
+        _set_cookie(response, token)
+        return {"token": token, "user": _public_user(user_id)}
+
+    @app.post("/api/logout")
+    def logout(response: Response):
+        response.delete_cookie(_COOKIE_NAME, path="/")
+        return {"status": "ok"}
+
+    @app.get("/api/me")
+    def me(user_id: str = Depends(_user_id_from_headers)):
+        return _public_user(user_id)
+
+    # ── Jobs (authenticated) ───────────────────────────────────────────
     @app.post("/api/jobs")
-    def submit(req: JobRequest):
+    def submit(req: JobRequest, user_id: str = Depends(_user_id_from_headers)):
         job_id = uuid.uuid4().hex[:12]
         _JOBS[job_id] = {
             "id": job_id,
+            "user_id": user_id,
             "status": "queued",
             "created": time.time(),
             "request": req.dict(),
@@ -128,6 +206,7 @@ def create_app() -> FastAPI:
         md_ns: float = Form(5.0),
         dry_run: bool = Form(True),
         seed: int = Form(0),
+        user_id: str = Depends(_user_id_from_headers),
     ):
         """Upload a PDB/CIF/FASTA target file and run the pipeline on it."""
         job_id = uuid.uuid4().hex[:12]
@@ -138,6 +217,7 @@ def create_app() -> FastAPI:
         )
         _JOBS[job_id] = {
             "id": job_id,
+            "user_id": user_id,
             "status": "queued",
             "created": time.time(),
             "request": req.dict(),
@@ -149,9 +229,11 @@ def create_app() -> FastAPI:
         return {"id": job_id, "status": "queued", "target": os.path.basename(path)}
 
     @app.get("/api/jobs")
-    def list_jobs():
+    def list_jobs(user_id: str = Depends(_user_id_from_headers)):
         rows = []
         for j in _JOBS.values():
+            if j.get("user_id") != user_id:
+                continue
             rows.append({
                 "id": j["id"], "status": j["status"],
                 "created": j["created"], "error": j.get("error"),
@@ -160,9 +242,9 @@ def create_app() -> FastAPI:
         return {"jobs": sorted(rows, key=lambda r: r["created"], reverse=True)}
 
     @app.get("/api/jobs/{job_id}")
-    def get_job(job_id: str):
+    def get_job(job_id: str, user_id: str = Depends(_user_id_from_headers)):
         job = _JOBS.get(job_id)
-        if job is None:
+        if job is None or job.get("user_id") != user_id:
             raise HTTPException(status_code=404, detail="job not found")
         return {
             "id": job["id"], "status": job["status"],

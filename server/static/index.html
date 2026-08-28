@@ -1,90 +1,293 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BindForge — Binder Design Pipeline</title>
+  <title>BindForge · 无界生物 — 蛋白结合剂设计平台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Roboto+Mono:wght@400&display=swap" rel="stylesheet" />
   <style>
-    :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --acc:#38bdf8; }
+    :root {
+      --navy: #1B3A5C;         /* 主色 deep navy */
+      --navy-2: #2C5F8A;       /* 次级蓝 */
+      --deep: #0A1628;         /* 深海军蓝 */
+      --gold: #C8963E;         /* 品牌金 */
+      --gold-2: #B8862E;
+      --bg: #F4F6FA;
+      --bg-card: #FFFFFF;
+      --cream: #FAF7F2;
+      --border: #E2E6ED;
+      --ink: #1A1A2E;
+      --ink-2: #5A6070;
+      --ink-3: #8B93A0;
+      --on-dark: #CCD5E0;
+      --ok: #3C8C5A;
+      --warn: #B8862E;
+      --err: #C0504D;
+      --radius: 12px;
+      --radius-lg: 24px;
+      --shadow: 0 4px 24px rgba(45,45,45,0.06);
+      --shadow-hover: 0 8px 40px rgba(27,58,92,0.12);
+    }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-           background: var(--bg); color: var(--ink); line-height:1.5; }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
-    h1 { font-size:1.6rem; margin:0 0 .25rem; }
-    .sub { color: var(--muted); margin:0 0 1.5rem; }
-    .card { background: var(--card); border:1px solid #334155; border-radius:12px;
-            padding:1.25rem; margin-bottom:1.25rem; }
-    label { display:block; font-size:.85rem; color:var(--muted); margin: .75rem 0 .25rem; }
-    input, textarea { width:100%; padding:.6rem .7rem; border-radius:8px; border:1px solid #334155;
-            background:#0f172a; color:var(--ink); font: inherit; }
-    textarea { min-height:80px; resize:vertical; }
-    .row { display:flex; gap:1rem; flex-wrap:wrap; }
-    .row > div { flex:1; min-width:130px; }
-    button { margin-top:1.25rem; padding:.7rem 1.4rem; border:0; border-radius:8px;
-            background:var(--acc); color:#06131f; font-weight:600; cursor:pointer; }
-    button:hover { filter:brightness(1.1); }
-    table { width:100%; border-collapse:collapse; font-size:.85rem; }
-    th, td { text-align:left; padding:.5rem .6rem; border-bottom:1px solid #334155; }
-    th { color:var(--muted); font-weight:600; }
-    .status { font-weight:600; }
-    .status.done { color:#4ade80; } .status.running, .status.queued { color:#fbbf24; }
-    .status.failed { color:#f87171; }
-    .err { color:#f87171; white-space:pre-wrap; }
-    .mono { font-family: ui-monospace, monospace; font-size:.8rem; word-break:break-all; }
-    .pill { display:inline-block; padding:.1rem .5rem; border-radius:999px; background:#334155; }
-    .hint { color: var(--muted); font-size:.8rem; margin:.25rem 0 0; }
-    .log { background:#0b1220; border:1px solid #334155; border-radius:8px; padding:.6rem .8rem;
-           font-family: ui-monospace, monospace; font-size:.75rem; color:#7dd3fc;
-           max-height:180px; overflow:auto; white-space:pre-wrap; margin-top:.75rem; }
-    .val-yes { color:#4ade80; font-weight:600; } .val-no { color:#64748b; }
+    body {
+      margin: 0; font-family: 'Noto Sans SC', system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--ink); line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--navy-2); }
+
+    /* ── header ── */
+    header {
+      position: sticky; top: 0; z-index: 50; background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .hdr { max-width: 1200px; margin: 0 auto; padding: 12px 24px;
+           display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+    .brand .mark { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--navy), var(--navy-2));
+                   color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; }
+    .brand .name { font-size: 18px; font-weight: 700; color: var(--navy); letter-spacing: .5px; }
+    .brand .sub { font-size: 11px; color: var(--ink-3); letter-spacing: 2px; }
+    .hdr-actions { display: flex; align-items: center; gap: 12px; }
+    .user-chip { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
+
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    h1 { font-size: 1.8rem; margin: .25rem 0 .25rem; color: var(--navy); }
+    .subtitle { color: var(--ink-2); margin: 0 0 1.75rem; }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: var(--shadow); }
+    .card h2 { margin: 0 0 .75rem; font-size: 1.15rem; color: var(--navy); }
+
+    label { display: block; font-size: .85rem; color: var(--ink-2); margin: .8rem 0 .3rem; }
+    input[type=text], input[type=email], input[type=password], input[type=number], textarea {
+      width: 100%; padding: .65rem .8rem; border-radius: 10px; border: 1.5px solid var(--border);
+      background: #fff; color: var(--ink); font: inherit; transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus, textarea:focus { outline: none; border-color: var(--navy-2); box-shadow: 0 0 0 3px rgba(44,95,138,.12); }
+    textarea { min-height: 74px; resize: vertical; font-family: 'Roboto Mono', monospace; font-size: .85rem; }
+    input[type=file] { width: 100%; padding: .6rem; border: 1.5px dashed var(--border); border-radius: 10px; background: var(--cream); cursor: pointer; }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 130px; }
+    .hint { color: var(--ink-3); font-size: .8rem; margin: .3rem 0 0; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+           padding: .7rem 1.6rem; border: 0; border-radius: 999px; cursor: pointer;
+           font: inherit; font-weight: 600; letter-spacing: 1px; transition: filter .15s, transform .05s;
+           text-decoration: none; }
+    .btn-primary { background: var(--navy); color: #fff; }
+    .btn-gold { background: var(--gold); color: #fff; }
+    .btn-ghost { background: transparent; color: var(--navy); border: 1.5px solid var(--navy); }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--ink-2); font-weight: 600; background: var(--cream); }
+    tr:hover td { background: #FAFBFC; }
+    .mono { font-family: 'Roboto Mono', monospace; font-size: .78rem; word-break: break-all; }
+    .status { font-weight: 600; }
+    .status.done { color: var(--ok); } .status.running, .status.queued { color: var(--warn); }
+    .status.failed { color: var(--err); }
+    .err { color: var(--err); white-space: pre-wrap; background: #FBEEEE; border: 1px solid #F0C9C9;
+           border-radius: 10px; padding: .7rem .9rem; margin-top: .5rem; }
+    .log { background: var(--deep); color: #B9D6EF; border-radius: 10px; padding: .7rem .9rem;
+           font-family: 'Roboto Mono', monospace; font-size: .74rem; max-height: 180px; overflow: auto;
+           white-space: pre-wrap; margin-top: .75rem; }
+    .val-yes { color: var(--ok); font-weight: 600; } .val-no { color: var(--ink-3); }
+
+    .pill { display: inline-block; padding: .1rem .6rem; border-radius: 999px; font-size: .75rem; }
+    .pill-navy { background: rgba(27,58,92,.08); color: var(--navy); }
+    .pill-gold { background: rgba(200,150,62,.14); color: #8a6a2c; }
+
+    .stage { display: flex; gap: 8px; flex-wrap: wrap; margin: .5rem 0 0; }
+    .stage .s { flex: 1; min-width: 150px; border: 1px solid var(--border); border-radius: 12px; padding: .7rem .8rem; }
+    .stage .s b { color: var(--navy); }
+    .stage .s span { color: var(--ink-2); font-size: .8rem; }
+
+    .note-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .note-table th, .note-table td { border: 1px solid var(--border); padding: .55rem .7rem; text-align: left; }
+    .note-table th { background: var(--cream); color: var(--ink-2); }
+
+    /* auth view */
+    .auth-wrap { max-width: 420px; margin: 3rem auto; padding: 0 1.25rem; }
+    .auth-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+                 padding: 2rem 1.75rem; box-shadow: var(--shadow); }
+    .auth-card .brand { justify-content: center; margin-bottom: .5rem; }
+    .auth-card h2 { text-align: center; color: var(--navy); margin: .5rem 0 .25rem; }
+    .auth-card .sub { text-align: center; color: var(--ink-3); margin: 0 0 1.25rem; }
+    .auth-tabs { display: flex; gap: 8px; margin-bottom: 1rem; }
+    .auth-tabs button { flex: 1; padding: .55rem; border-radius: 999px; border: 1.5px solid var(--border);
+                        background: #fff; cursor: pointer; font: inherit; font-weight: 600; color: var(--ink-2); }
+    .auth-tabs button.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .auth-msg { color: var(--err); font-size: .85rem; min-height: 1.2rem; margin: .4rem 0; }
+    .hidden { display: none !important; }
+    .small { font-size: .8rem; color: var(--ink-3); }
+    .lang-sw { background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .8rem;
+               cursor: pointer; font: inherit; font-size: .8rem; color: var(--ink-2); }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <header>
+    <div class="hdr">
+      <a class="brand" href="/">
+        <span class="mark">B</span>
+        <span><span class="name">BindForge</span><br /><span class="sub">无界生物 · 蛋白结合剂设计</span></span>
+      </a>
+      <div class="hdr-actions">
+        <span class="user-chip hidden" id="userChip"></span>
+        <button class="lang-sw" id="langBtn" title="切换语言 / Switch language">中 / EN</button>
+        <button class="btn btn-ghost hidden" id="logoutBtn" style="padding:.4rem 1.1rem">退出</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── AUTH VIEW ─── -->
+  <div class="auth-wrap hidden" id="authView">
+    <div class="auth-card">
+      <div class="brand"><span class="mark">B</span><span class="name">BindForge</span></div>
+      <h2 id="authTitle">登录平台</h2>
+      <div class="sub" id="authSub">登录后使用蛋白结合剂设计工具</div>
+      <div class="auth-tabs">
+        <button id="tabLogin" class="active" data-mode="login">登录</button>
+        <button id="tabRegister" data-mode="register">注册</button>
+      </div>
+      <label for="email" id="lblEmail">邮箱</label>
+      <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
+      <label for="password" id="lblPassword">密码</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+      <div class="auth-msg" id="authMsg"></div>
+      <button class="btn btn-primary" id="authBtn" style="width:100%">登录</button>
+      <p class="small" style="text-align:center;margin-top:1rem" id="authFoot">密码至少 8 位</p>
+    </div>
+  </div>
+
+  <!-- ─── APP VIEW ─── -->
+  <div class="wrap hidden" id="appView">
     <h1>BindForge</h1>
-    <p class="sub">Binder sequence design → structure prediction (Boltz-2 / Chai-1) → MD stability validation.</p>
+    <p class="subtitle">蛋白结合剂 <b>序列设计 → 结构预测（Boltz-2 / Chai-1）→ MD 稳定性验证</b> 一体化流程，云端 API 计算，无需本地 GPU。</p>
 
     <div class="card">
-      <label for="file">Target structure — upload a PDB / CIF / FASTA file</label>
+      <h2>① 提交任务 / Submit</h2>
+      <label for="file">上传靶点结构（PDB / CIF / FASTA）</label>
       <input id="file" type="file" accept=".pdb,.cif,.mmcif,.fasta,.fa,.faa,.txt" />
-      <div class="hint">…or paste a raw amino-acid sequence instead of uploading (used only when no file is chosen):</div>
+      <div class="hint">…或不传文件、直接粘贴靶点氨基酸序列：</div>
       <textarea id="target" placeholder="MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP"></textarea>
       <div class="row">
-        <div><label for="n_designs">Designs</label><input id="n_designs" type="number" value="4" /></div>
-        <div><label for="length">Length range</label><input id="length" value="20-25" /></div>
-        <div><label for="md_top">MD top-K</label><input id="md_top" type="number" value="2" /></div>
-        <div><label for="md_ns">MD ns</label><input id="md_ns" type="number" step="0.1" value="0.05" /></div>
+        <div><label for="n_designs">设计数量</label><input id="n_designs" type="number" value="4" min="1" max="32" /></div>
+        <div><label for="length">结合剂长度范围</label><input id="length" value="20-25" /></div>
+        <div><label for="md_top">MD 验证 top-K</label><input id="md_top" type="number" value="2" min="0" max="10" /></div>
+        <div><label for="md_ns">MD 时长 (ns)</label><input id="md_ns" type="number" step="0.1" value="0.05" min="0.01" /></div>
       </div>
-      <label><input id="dry_run" type="checkbox" checked /> Dry-run (mock providers, no API keys)</label>
-      <button id="submit">Run pipeline</button>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="dry_run" type="checkbox" checked style="width:auto" /> Dry-run（mock 服务，无需 API Key，用于流程测试）
+      </label>
+      <button class="btn btn-gold" id="submit" style="margin-top:1.1rem">▶ 运行流程 / Run pipeline</button>
     </div>
 
     <div class="card">
-      <h2 style="margin-top:0">Jobs</h2>
+      <h2>② 我的任务 / Jobs</h2>
       <table id="jobs">
-        <thead><tr><th>ID</th><th>Status</th><th>Results</th><th>Action</th></tr></thead>
+        <thead><tr><th>任务 ID</th><th>状态</th><th>结果数</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
 
-    <div class="card" id="resultsCard" style="display:none">
-      <h2 style="margin-top:0">Results — <span id="resultJobId"></span></h2>
+    <div class="card hidden" id="resultsCard">
+      <h2>③ 结果 — <span id="resultJobId" class="mono"></span></h2>
       <div id="error"></div>
       <table id="results">
         <thead><tr>
-          <th>#</th><th>Binder</th><th>Len</th><th>Score</th><th>Conf</th>
-          <th>MD</th><th>ipTM</th><th>RMSD (nm)</th><th>Contact</th><th>dG</th><th>Sequence</th>
+          <th>#</th><th>结合剂</th><th>长度</th><th>综合分</th><th>置信度</th><th>MD</th>
+          <th>ipTM</th><th>RMSD(nm)</th><th>接触保留</th><th>ΔG</th><th>序列</th>
         </tr></thead>
         <tbody></tbody>
       </table>
-      <div class="log" id="log" style="display:none"></div>
+      <div class="log hidden" id="log"></div>
+    </div>
+
+    <div class="card">
+      <h2>④ 流程说明 / How it works</h2>
+      <div class="stage">
+        <div class="s"><b>1 · 设计</b><br /><span>生成候选结合剂序列（de novo）</span></div>
+        <div class="s"><b>2 · 预测</b><br /><span>开源 AlphaFold3 替代（Boltz-2 / Chai-1）折叠复合体</span></div>
+        <div class="s"><b>3 · 验证</b><br /><span>本地 OpenMM MD（隐式 GBSA）测稳定性并排序</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⑤ 适用范围与限制 / Scope &amp; limits</h2>
+      <table class="note-table">
+        <thead><tr><th>项目</th><th>限制说明</th></tr></thead>
+        <tbody>
+          <tr><td><b>靶点蛋白大小</b></td><td>
+            Boltz-2：单链 ≤ 4096 残基，单 GPU 约 ≤ 2000 残基总量；Chai-1：本地 ≤ 2048 token，API ≤ 1024 残基。
+            MD 验证受 CPU 算力限制，建议靶点 + 结合剂总量 &lt; 500 残基，否则耗时极长。
+          </td></tr>
+          <tr><td><b>翻译后修饰（糖基化 / 磷酸化等）</b></td><td>
+            结构预测阶段可输入含修饰的输入，但 <b>MD 验证当前不建模 PTM</b>：糖基（NAG/BMA/MAN 等）、
+            磷酸基等非标准残基会在 MD 前被剥离，仅按 20 种标准氨基酸处理。如需糖基化结合剂的稳定性评估，属后续规划能力。
+          </td></tr>
+          <tr><td><b>其他非标准残基</b></td><td>MD 阶段仅支持标准 20 种氨基酸（及 MSE/SEP/TPO）；配体、离子、水会在 MD 前被移除。</td></tr>
+        </tbody>
+      </table>
+      <div class="hint" style="margin-top:.5rem">具体上限依所连接的在线服务（NVIDIA NIM / boltz.bio / Chai）与算力而异。</div>
     </div>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const fmt = (v, d = 3) => (v === null || v === undefined) ? '—' : (typeof v === 'number' ? v.toFixed(d) : v);
+    const I18N = {
+      login: '登录', register: '注册', loginTitle: '登录平台', registerTitle: '注册账号',
+      loginSub: '登录后使用蛋白结合剂设计工具', registerSub: '创建账号以使用 BindForge',
+      email: '邮箱', password: '密码', passwordMin: '密码至少 8 位',
+      loginBtn: '登录', registerBtn: '注册并登录',
+      errNeedEmail: '请输入邮箱和密码', errNeedPass: '密码至少 8 位',
+      run: '运行流程 / Run pipeline', logout: '退出',
+    };
+    let lang = localStorage.getItem('bf_lang') || 'zh';
 
+    const fmt = (v, d = 3) => (v === null || v === undefined) ? '—' : (typeof v === 'number' ? v.toFixed(d) : v);
+    const pct = (v) => (v === null || v === undefined) ? '—' : (v * 100).toFixed(0) + '%';
+
+    async function api(path, opts = {}) {
+      const r = await fetch(path, opts);
+      if (r.status === 401) { showAuth(); throw new Error('unauthorized'); }
+      return r.json();
+    }
+
+    // ── auth UI ──
+    let authMode = 'login';
+    function showAuth() { $('authView').classList.remove('hidden'); $('appView').classList.add('hidden'); $('logoutBtn').classList.add('hidden'); $('userChip').classList.add('hidden'); }
+    function showApp() { $('authView').classList.add('hidden'); $('appView').classList.remove('hidden'); $('logoutBtn').classList.remove('hidden'); }
+
+    async function loadMe() {
+      try { const u = await api('/api/me'); $('userChip').textContent = u.email || ''; $('userChip').classList.remove('hidden'); showApp(); refreshJobs(); }
+      catch (e) { showAuth(); }
+    }
+
+    async function doAuth() {
+      const email = $('email').value.trim(), password = $('password').value;
+      $('authMsg').textContent = '';
+      if (!email || !password) { $('authMsg').textContent = I18N.errNeedEmail; return; }
+      if (authMode === 'register' && password.length < 8) { $('authMsg').textContent = I18N.errNeedPass; return; }
+      const path = authMode === 'login' ? '/api/login' : '/api/register';
+      try {
+        const r = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) });
+        const j = await r.json();
+        if (!r.ok) { $('authMsg').textContent = j.detail || 'error'; return; }
+        $('password').value = '';
+        loadMe();
+      } catch (e) { $('authMsg').textContent = '网络错误 / network error'; }
+    }
+
+    async function doLogout() {
+      try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+      showAuth();
+    }
+
+    // ── job submission ──
     async function submitJob() {
       const file = $('file').files[0];
       const params = {
@@ -99,72 +302,85 @@
         const fd = new FormData();
         fd.append('file', file);
         for (const [k, v] of Object.entries(params)) fd.append(k, v);
-        const r = await fetch('/api/upload', { method: 'POST', body: fd });
-        j = await r.json();
+        j = await api('/api/upload', { method: 'POST', body: fd });
       } else {
         const seq = $('target').value.trim();
-        if (!seq) { alert('Upload a structure file, or paste a target sequence.'); return; }
-        const r = await fetch('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'},
+        if (!seq) { alert('请上传结构文件，或粘贴靶点序列 / Upload a file or paste a target sequence.'); return; }
+        j = await api('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ target: seq, ...params }) });
-        j = await r.json();
       }
       if (j.id) pollJob(j.id);
     }
 
     async function pollJob(id) {
-      const r = await fetch('/api/jobs/' + id);
-      const j = await r.json();
-      refreshJobs();
-      showProgress(id, j);
+      const j = await api('/api/jobs/' + id);
+      refreshJobs(); showProgress(id, j);
       if (j.status === 'done' || j.status === 'failed') { showResult(id, j); return; }
       setTimeout(() => pollJob(id), 2000);
     }
 
     function showProgress(id, j) {
-      const log = $('log');
       if (j.logs && j.logs.trim()) {
-        $('resultsCard').style.display = 'block';
+        $('resultsCard').classList.remove('hidden');
         $('resultJobId').textContent = id;
-        log.style.display = 'block';
-        log.textContent = j.logs;
-        log.scrollTop = log.scrollHeight;
+        const log = $('log'); log.classList.remove('hidden');
+        log.textContent = j.logs; log.scrollTop = log.scrollHeight;
       }
     }
 
     async function refreshJobs() {
-      const r = await fetch('/api/jobs'); const d = await r.json();
-      const tbody = $('jobs').querySelector('tbody'); tbody.innerHTML = '';
-      for (const j of d.jobs) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="mono">${j.id}</td>
-          <td><span class="status ${j.status}">${j.status}</span></td>
-          <td>${j.n_results}</td>
-          <td><button onclick="pollJob('${j.id}')" style="margin:0;padding:.3rem .8rem">view</button></td>`;
-        tbody.appendChild(tr);
-      }
+      try {
+        const d = await api('/api/jobs');
+        const tbody = $('jobs').querySelector('tbody'); tbody.innerHTML = '';
+        for (const j of d.jobs) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td class="mono">${j.id}</td>
+            <td><span class="status ${j.status}">${j.status}</span></td>
+            <td>${j.n_results}</td>
+            <td><button class="btn btn-ghost" style="padding:.25rem .8rem" onclick="pollJob('${j.id}')">查看</button></td>`;
+          tbody.appendChild(tr);
+        }
+      } catch (e) {}
     }
 
     function showResult(id, j) {
-      $('resultsCard').style.display = 'block';
+      $('resultsCard').classList.remove('hidden');
       $('resultJobId').textContent = id;
       $('error').innerHTML = j.error ? `<div class="err">${j.error}</div>` : '';
       const tbody = $('results').querySelector('tbody'); tbody.innerHTML = '';
       for (const row of (j.result || [])) {
         const tr = document.createElement('tr');
-        const md = row.validated
-          ? `<span class="val-yes">✓</span>`
-          : `<span class="val-no">—</span>`;
+        const md = row.validated ? `<span class="val-yes">✓</span>` : `<span class="val-no">—</span>`;
         tr.innerHTML = `<td>${row.rank}</td><td class="mono">${row.binder_id}</td>
           <td>${row.length}</td><td>${fmt(row.score)}</td><td>${fmt(row.confidence)}</td>
           <td>${md}</td><td>${fmt(row.ipTM, 2)}</td><td>${fmt(row.md_rmsd_mean, 2)}</td>
-          <td>${row.md_contact_retention === null ? '—' : (row.md_contact_retention * 100).toFixed(0) + '%'}</td>
-          <td>${fmt(row.md_dG, 1)}</td><td class="mono">${row.sequence}</td>`;
+          <td>${pct(row.md_contact_retention)}</td><td>${fmt(row.md_dG, 1)}</td>
+          <td class="mono">${row.sequence}</td>`;
         tbody.appendChild(tr);
       }
     }
 
+    // ── wiring ──
     $('submit').onclick = submitJob;
-    refreshJobs();
+    $('authBtn').onclick = doAuth;
+    $('logoutBtn').onclick = doLogout;
+    $('tabLogin').onclick = () => setAuthMode('login');
+    $('tabRegister').onclick = () => setAuthMode('register');
+    $('langBtn').onclick = () => { lang = lang === 'zh' ? 'en' : 'zh'; localStorage.setItem('bf_lang', lang); applyLang(); };
+
+    function setAuthMode(m) {
+      authMode = m;
+      $('tabLogin').classList.toggle('active', m === 'login');
+      $('tabRegister').classList.toggle('active', m === 'register');
+      $('authTitle').textContent = m === 'login' ? I18N.loginTitle : I18N.registerTitle;
+      $('authSub').textContent = m === 'login' ? I18N.loginSub : I18N.registerSub;
+      $('authBtn').textContent = m === 'login' ? I18N.loginBtn : I18N.registerBtn;
+      $('authFoot').textContent = m === 'register' ? I18N.passwordMin : '';
+      $('authMsg').textContent = '';
+    }
+    function applyLang() { /* 界面主要中文；英文切换为后续项 */ }
+
+    loadMe();
   </script>
 </body>
 </html>

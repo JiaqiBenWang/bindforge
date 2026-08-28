@@ -91,9 +91,20 @@ pip install -e ".[web]"
 bindforge serve            # http://127.0.0.1:8000
 ```
 
-Open that URL in a browser, **upload a target PDB / CIF / FASTA** (or paste a
-raw sequence), set the parameters, and hit *Run pipeline*. The UI shows live MD
-progress, a job list, and the ranked results table with per-component scores.
+The web UI requires **login** — register with an email + password (accounts and
+sessions are stored locally in `data/`; passwords are PBKDF2-hashed and sessions
+are HMAC-signed, no external auth dependency). Then **upload a target PDB / CIF
+/ FASTA** (or paste a raw sequence), set the parameters, and hit *Run pipeline*.
+The UI shows live MD progress, a job list scoped to your account, and the ranked
+results table with per-component scores.
+
+**Scope & limits (shown in the UI):** Boltz-2 supports up to ~4096 residues/chain
+(≈2000 total on a single GPU); Chai-1 up to 2048 tokens locally / 1024 residues
+via API. MD is CPU-bound, so keep target + binder under ~500 residues.
+Post-translational modifications (glycosylation, phosphorylation, …) are **not
+modeled in the MD stage** — non-standard residues are stripped before
+simulation; only the 20 standard amino acids (plus MSE/SEP/TPO) are kept.
+
 The backend runs the same `binderforge.pipeline` code in a background thread; a
 3D (NGL/Mol*) structure viewer is the planned upgrade path.
 
