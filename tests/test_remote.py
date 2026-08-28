@@ -73,3 +73,12 @@ def test_render_script_providers_passthrough():
     )
     assert "--design-provider boltz" in script
     assert "--structure-provider chai" in script
+
+
+def test_render_script_bindforge_bin_override():
+    cfg = remote.SlurmConfig(
+        host="h", user="u", password="p",
+        bindforge_bin="/home/benwang/.conda/envs/bindforge/bin/bindforge",
+    )
+    script = remote.render_slurm_script(cfg, "j", "t.pdb", {"dry_run": True})
+    assert "/home/benwang/.conda/envs/bindforge/bin/bindforge run" in script

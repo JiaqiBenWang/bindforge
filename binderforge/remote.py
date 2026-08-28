@@ -13,7 +13,7 @@ install it with ``pip install -e '.[remote]'`` (or the ``web`` extra plus
 
 from __future__ import annotations
 
-import io
+import base64
 import json
 import os
 import re
@@ -21,7 +21,7 @@ import shlex
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Slurm job states as the web server exposes them (matches local jobs).
 STATE_QUEUED = "queued"
@@ -53,14 +53,16 @@ class SlurmConfig:
     gres: Optional[str] = None           # e.g. "gpu:1"
     conda_env: Optional[str] = None
     modules: str = ""                    # comma-separated, e.g. "cuda/12,openmm"
+    bindforge_bin: str = "bindforge"     # command or full path to the bindforge CLI
     timeout: float = 20.0                # SSH connect/auth/IO timeout (s)
 
     @classmethod
     def from_env(cls) -> "SlurmConfig":
+        key = os.environ.get("BINDFORGE_SLURM_KEY")
         return cls(
             host=os.environ.get("BINDFORGE_SLURM_HOST", ""),
             user=os.environ.get("BINDFORGE_SLURM_USER", ""),
-            key_path=os.environ.get("BINDFORGE_SLURM_KEY") or None,
+            key_path=os.path.expanduser(key) if key else None,
             password=os.environ.get("BINDFORGE_SLURM_PASSWORD") or None,
             port=int(os.environ.get("BINDFORGE_SLURM_PORT", "22")),
             remote_dir=os.environ.get("BINDFORGE_SLURM_REMOTE_DIR", "bindforge_jobs"),
@@ -70,6 +72,7 @@ class SlurmConfig:
             gres=os.environ.get("BINDFORGE_SLURM_GRES") or None,
             conda_env=os.environ.get("BINDFORGE_SLURM_CONDA") or None,
             modules=os.environ.get("BINDFORGE_SLURM_MODULES", ""),
+            bindforge_bin=os.environ.get("BINDFORGE_SLURM_BINDFORGE", "bindforge"),
             timeout=float(os.environ.get("BINDFORGE_SLURM_TIMEOUT", "20")),
         )
 
@@ -106,7 +109,7 @@ def render_slurm_script(
         lines.append(f"module load {shlex.quote(mod.strip())}")
     lines.append("")
 
-    cmd = ["bindforge", "run", "--target", target_name]
+    cmd = [cfg.bindforge_bin, "run", "--target", target_name]
     cmd += ["--n-designs", str(run_args.get("n_designs", 8))]
     cmd += ["--length", str(run_args.get("length", "50-80"))]
     if run_args.get("hotspot"):
@@ -130,14 +133,14 @@ class SlurmBackend:
     """Minimal paramiko-based SSH+Slurm transport.
 
     Each public method opens a fresh SSH session (connect → work → close) so
-    the long polling loop never holds a single stale connection. Calls that
-    need SFTP reuse the session's SFTP channel.
+    the long polling loop never holds a single stale connection. Files are
+    transferred over the exec channel (base64 via stdin/stdout) rather than
+    SFTP, because many HPC login nodes disable the SFTP/SCP subsystem.
     """
 
     def __init__(self, cfg: SlurmConfig):
         self.cfg = cfg
         self._client = None
-        self._sftp = None
         self._home = None
 
     # ── session plumbing ───────────────────────────────────────────────
@@ -168,18 +171,15 @@ class SlurmBackend:
             raise RemoteError(f"SSH 连接失败 / SSH connect failed: {exc}")
         client.get_transport().set_keepalive(30)
         self._client = client
-        self._sftp = client.open_sftp()
         _, out, _ = client.exec_command("echo $HOME")
         self._home = out.read().decode(errors="replace").strip() or "~"
 
     def _close(self) -> None:
-        for obj in (self._sftp, self._client):
+        if self._client is not None:
             try:
-                if obj is not None:
-                    obj.close()
+                self._client.close()
             except Exception:  # noqa: BLE001
                 pass
-        self._sftp = None
         self._client = None
         self._home = None
 
@@ -191,8 +191,11 @@ class SlurmBackend:
         finally:
             self._close()
 
-    def _run(self, cmd: str) -> Tuple[int, str, str]:
-        _, stdout, stderr = self._client.exec_command(cmd)
+    def _run(self, cmd: str, stdin_data: Optional[str] = None) -> Tuple[int, str, str]:
+        stdin, stdout, stderr = self._client.exec_command(cmd)
+        if stdin_data is not None:
+            stdin.write(stdin_data)
+        stdin.channel.shutdown_write()
         out = stdout.read().decode(errors="replace")
         err = stderr.read().decode(errors="replace")
         rc = stdout.channel.recv_exit_status()
@@ -205,19 +208,42 @@ class SlurmBackend:
         return self._home.rstrip("/") + "/" + base.strip("/") + "/" + job_id
 
     def _exists(self, remote_path: str) -> bool:
-        try:
-            self._sftp.stat(remote_path)
-            return True
-        except Exception:  # noqa: BLE001
-            return False
+        rc, _, _ = self._run(f"test -f {shlex.quote(remote_path)}")
+        return rc == 0
 
     def _cat(self, remote_path: str, tail: int = 4000) -> str:
-        try:
-            with self._sftp.open(remote_path, "r") as f:
-                data = f.read().decode(errors="replace")
-            return data[-tail:]
-        except Exception:  # noqa: BLE001
-            return ""
+        rc, out, _ = self._run(f"tail -c {tail} {shlex.quote(remote_path)} 2>/dev/null")
+        return out if rc == 0 else ""
+
+    # ── file transfer over the exec channel (base64) ───────────────────
+    def _put(self, local_path: str, remote_path: str) -> None:
+        with open(local_path, "rb") as f:
+            self._put_bytes(remote_path, base64.b64encode(f.read()).decode("ascii"))
+
+    def _put_text(self, remote_path: str, text: str) -> None:
+        self._put_bytes(remote_path, base64.b64encode(text.encode("utf-8")).decode("ascii"))
+
+    def _put_bytes(self, remote_path: str, b64: str) -> None:
+        d = os.path.dirname(remote_path)
+        rc, out, err = self._run(
+            f"mkdir -p {shlex.quote(d)} && base64 -d > {shlex.quote(remote_path)}",
+            stdin_data=b64,
+        )
+        if rc != 0:
+            raise RemoteError(f"上传失败 / upload failed: {err or out}")
+
+    def _get(self, remote_path: str, local_path: str) -> None:
+        rc, out, err = self._run(f"base64 {shlex.quote(remote_path)} 2>/dev/null")
+        if rc != 0:
+            raise RemoteError(f"下载失败 / download failed: {err or out}")
+        data = base64.b64decode("".join(out.split()))
+        os.makedirs(os.path.dirname(os.path.abspath(local_path)) or ".", exist_ok=True)
+        with open(local_path, "wb") as f:
+            f.write(data)
+
+    def _listdir(self, remote_dir: str) -> List[str]:
+        rc, out, _ = self._run(f"ls -1 {shlex.quote(remote_dir)} 2>/dev/null")
+        return [x for x in out.splitlines() if x] if rc == 0 else []
 
     # ── public operations ──────────────────────────────────────────────
     def submit(self, job_id: str, target_local_path: str,
@@ -225,9 +251,10 @@ class SlurmBackend:
         """Upload target + sbatch script, submit, return the Slurm job id."""
         with self._session():
             jd = self.job_dir(job_id)
-            self._run(f"mkdir -p {shlex.quote(jd)}")
-            self._sftp.put(target_local_path, f"{jd}/{target_remote_name}")
-            self._sftp.putfo(io.BytesIO(script_text.encode("utf-8")), f"{jd}/submit.slurm")
+            self._put(target_local_path, f"{jd}/{target_remote_name}")
+            self._put_text(f"{jd}/submit.slurm", script_text)
+            # Submitting with cwd=jd makes Slurm run the job in the same dir,
+            # so the script's relative --target/--results-dir paths resolve.
             rc, out, err = self._run(f"cd {shlex.quote(jd)} && sbatch submit.slurm")
             if rc != 0:
                 raise RemoteError(f"sbatch 提交失败 / sbatch failed: {err or out}")
@@ -257,15 +284,11 @@ class SlurmBackend:
         with self._session():
             jd = self.job_dir(job_id)
             os.makedirs(local_dir, exist_ok=True)
-            self._sftp.get(f"{jd}/ranking.json", os.path.join(local_dir, "ranking.json"))
-            try:
-                names = self._sftp.listdir(jd)
-            except Exception:  # noqa: BLE001
-                names = []
-            for name in names:
+            self._get(f"{jd}/ranking.json", os.path.join(local_dir, "ranking.json"))
+            for name in self._listdir(jd):
                 if name.endswith(".pdb"):
                     try:
-                        self._sftp.get(f"{jd}/{name}", os.path.join(local_dir, name))
+                        self._get(f"{jd}/{name}", os.path.join(local_dir, name))
                     except Exception:  # noqa: BLE001
                         pass
 
