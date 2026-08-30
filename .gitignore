@@ -15,3 +15,18 @@ build/
 node_modules/
 web/dist/
 .DS_Store
+
+# 工作/临时文件（草稿图、PPT、PyMOL 会话等，不提交）
+*.pptx
+*.pse
+~$*
+/0.png
+/01.png
+/02.png
+/03.png
+/04.png
+/1.png
+/1_01.png
+/2.png
+/2p.png
+/flow.png
