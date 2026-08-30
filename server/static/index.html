@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BindForge 蛋白结合剂设计平台</title>
+  <title>BindForge 多肽药物设计平台</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <script src="https://unpkg.com/ngl@2.0.0-dev.39/dist/ngl.js"></script>
   <style>
@@ -47,6 +47,10 @@
     }
     a { color: var(--cyan); text-decoration: none; }
     ::selection { background: rgba(0,212,255,.28); }
+    @font-face { font-family: "Exo 2"; src: url("/fonts/exo-2-700.woff2") format("woff2");
+                 font-weight: 700; font-style: normal; font-display: swap; }
+    @font-face { font-family: "Exo 2"; src: url("/fonts/exo-2-800.woff2") format("woff2");
+                 font-weight: 800; font-style: normal; font-display: swap; }
     .mono, textarea, .log, code {
       font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
                    "Liberation Mono", "Courier New", monospace;
@@ -75,12 +79,21 @@
     .brand-logo { height: 28px; width: auto; display: block; }
     .brand-sep { width: 1px; height: 32px; background: var(--line); }
     .brand-name { display: flex; flex-direction: column; line-height: 1.25; }
-    .brand-name .name { display: flex; align-items: baseline; gap: 9px; font-size: 21px; font-weight: 700; letter-spacing: .3px; }
+    .brand-name .name { display: flex; align-items: baseline; gap: 9px; font-size: 32px; font-weight: 800; letter-spacing: .5px;
+                        font-family: "Exo 2", "Bahnschrift", "Segoe UI", sans-serif; }
     .brand-name .co { color: var(--text); }
-    .brand-name .product { background: linear-gradient(90deg, var(--cyan), var(--purple)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-    .brand-name .sub { font-size: 12px; color: var(--text-3); letter-spacing: .5px; }
+    .brand-name .product { color: var(--text); }
+    .brand-name .sub { font-size: 12px; color: var(--text); letter-spacing: .5px; }
     .hdr-actions { display: flex; align-items: center; gap: 12px; }
-    .user-chip { color: var(--text-2); font-size: 14px; }
+    .user-chip { color: var(--text); font-size: 15px; font-weight: 500; }
+    .nav-links { display: flex; align-items: center; gap: 2px; }
+    .nav-links a { position: relative; color: var(--text); font-size: 1rem; font-weight: 600;
+                   padding: .42rem .85rem; border-radius: 999px; transition: color .15s, background .15s; }
+    .nav-links a:hover { color: var(--text); background: rgba(255,255,255,.06); }
+    .nav-links a::after { content:""; position: absolute; left: 50%; bottom: 3px; width: 0; height: 2px;
+                   border-radius: 2px; background: linear-gradient(90deg, var(--cyan), var(--purple));
+                   transform: translateX(-50%); transition: width .22s; }
+    .nav-links a:hover::after { width: 58%; }
 
     .wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem 4rem; }
 
@@ -88,8 +101,8 @@
     .hero { position: relative; display: flex; align-items: center; gap: 2rem;
       padding: 3.4rem 0 3rem; min-height: 420px; overflow: hidden; }
     .hero-copy { flex: 1 1 540px; }
-    .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px;
-      letter-spacing: 2px; color: var(--cyan); font-weight: 600; margin-bottom: 1rem; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 17px;
+      letter-spacing: 1.5px; color: var(--cyan); font-weight: 600; margin-bottom: 1rem; }
     .eyebrow::before { content:""; width: 22px; height: 1px; background: var(--cyan); }
     .hero h1 { margin: 0; font-size: 2.6rem; line-height: 1.15; font-weight: 700; letter-spacing: -.5px; }
     .grad { background: linear-gradient(90deg, var(--cyan) 0%, #5a9bff 45%, var(--purple) 100%);
@@ -101,7 +114,7 @@
     .hero-cta { display: flex; gap: 14px; margin-top: 1.7rem; flex-wrap: wrap; }
 
     .hero-art { flex: 0 0 380px; max-width: 42vw; }
-    .hero-art svg { width: 100%; height: auto; }
+    .hero-art svg, .hero-art img { width: 100%; height: auto; border-radius: 14px; }
     .hero-art .node { animation: pulse 3.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
     @keyframes pulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }
 
@@ -138,7 +151,7 @@
     /* ───────────── 卡片 ───────────── */
     .card { background: var(--card-bg); border: 1px solid var(--card-line); border-radius: var(--radius-lg);
             padding: 1.6rem 1.6rem 1.7rem; margin-bottom: 1.25rem; position: relative;
-            transition: transform .2s, box-shadow .2s, border-color .2s; }
+            transition: transform .2s, box-shadow .2s, border-color .2s; scroll-margin-top: 88px; }
     .card:hover { transform: translateY(-2px); border-color: rgba(0,212,255,.6); box-shadow: 0 12px 34px rgba(0,0,0,.28), 0 0 22px rgba(0,212,255,.16); }
     .card h2 { margin: 0 0 .9rem; font-size: 1.05rem; font-weight: 600;
                display: flex; align-items: center; gap: 10px; color: var(--card-text); }
@@ -183,7 +196,13 @@
     .file-drop svg { width: 26px; height: 26px; color: var(--cyan); }
     .file-drop .fd-main { font-weight: 600; }
     .file-drop .fd-sub { color: var(--card-text-3); font-size: .78rem; }
+    .file-drop.selected { border-color: var(--ok); border-style: solid; background: rgba(47,224,167,.07); }
+    .file-drop.selected .fd-main { color: var(--ok); }
     .file-input { display: none; }
+    .input-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+    .paste-col { display: flex; flex-direction: column; }
+    .paste-label { font-size: .82rem; font-weight: 600; color: var(--card-text); margin-bottom: .6rem; }
+    .paste-col textarea { flex: 1; resize: vertical; }
     .or-divider { display: flex; align-items: center; gap: 12px; margin: 1rem 0; color: var(--card-text-3); font-size: .8rem; }
     .or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: var(--card-line); }
     .param-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: stretch; }
@@ -225,13 +244,15 @@
 
     .pill { display: inline-block; padding: .12rem .62rem; border-radius: 999px; font-size: .75rem; font-weight: 500; }
     .pill-cyan { background: rgba(0,212,255,.1); color: var(--cyan); }
-    .pill-purple { background: rgba(123,47,252,.16); color: #c9a6ff; }
+    .pill-purple { background: rgba(123,47,252,.16); color: var(--text); }
 
     /* ───────────── 分隔标题 ───────────── */
-    .section-title { display: flex; align-items: center; gap: 14px; margin: 2.2rem 0 1.2rem;
-      color: var(--text-2); font-size: .88rem; letter-spacing: 2px; }
-    .section-title::before, .section-title::after { content:""; flex: 1; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--line), transparent); }
+    .section-title { display: flex; align-items: center; gap: 12px; margin: 2.2rem 0 1.2rem;
+      color: var(--text); font-family: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "JetBrains Mono", monospace;
+      font-size: .92rem; font-weight: 600; letter-spacing: 1.5px; scroll-margin-top: 88px; }
+    .section-title::before { content: ">"; color: var(--cyan); font-weight: 700; }
+    .section-title::after { content:""; flex: 1; height: 1px;
+      background: linear-gradient(90deg, rgba(0,212,255,.5), transparent); }
 
     .empty { color: var(--card-text-3); font-size: .9rem; text-align: center; padding: 1.7rem 1.2rem;
              border: 1.5px dashed #c3cbdb; border-radius: 12px; background: var(--card-input-bg); }
@@ -251,6 +272,25 @@
     .flip-front span { color: var(--card-text-3); font-size: .78rem; }
     .flip-back { transform: rotateY(180deg); border-top: 2px solid var(--purple); background: var(--card-input-bg); }
     .flip-back p { margin: 0; color: var(--card-text-2); font-size: .88rem; line-height: 1.6; }
+
+    /* ───────────── 设计流程（Pipeline） ───────────── */
+    .pipeline { display: block; }
+    .pipeline-img { display: block; width: 100%; height: auto; border-radius: var(--radius-lg);
+      border: 1px solid var(--card-line); box-shadow: 0 16px 40px rgba(0,0,0,.25); }
+    .pipe-step { position: relative; background: var(--card-bg); border: 1px solid var(--card-line);
+      border-radius: var(--radius-lg); padding: 1.4rem 1.3rem 1.5rem; overflow: hidden;
+      transition: transform .2s, box-shadow .2s; }
+    .pipe-step::before { content:""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--cyan), var(--purple)); }
+    .pipe-step:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.22), 0 0 20px rgba(0,212,255,.12); }
+    .pipe-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: .6rem; }
+    .pipe-num { font-size: .72rem; font-weight: 700; letter-spacing: 2px; color: var(--cyan);
+      background: rgba(0,212,255,.1); border: 1px solid rgba(0,212,255,.25); padding: .1rem .55rem; border-radius: 999px; }
+    .pipe-en { font-size: .74rem; font-weight: 600; color: var(--card-text-3); letter-spacing: .3px; }
+    .pipe-step h3 { margin: 0 0 .55rem; font-size: 1.08rem; font-weight: 700; color: var(--card-text); }
+    .pipe-cn { font-weight: 400; font-size: .78rem; color: var(--card-text-3); margin-left: 6px; }
+    .pipe-step p { margin: 0; color: var(--card-text-2); font-size: .86rem; line-height: 1.7; }
+    .pipe-arrow { display: flex; align-items: center; justify-content: center; color: var(--cyan); font-size: 1.9rem; opacity: .7; }
 
     /* ───────────── 范围表格 ───────────── */
     .note-table { width: 100%; border-collapse: collapse; font-size: .85rem; color: var(--card-text); }
@@ -274,7 +314,7 @@
     .hidden { display: none !important; }
     .small { font-size: .8rem; color: var(--card-text-3); }
     .lang-sw { background: none; border: 1px solid var(--line); border-radius: 999px; padding: .32rem .85rem;
-               cursor: pointer; font: inherit; font-size: .8rem; color: var(--text-2); }
+               cursor: pointer; font: inherit; font-size: .9rem; font-weight: 500; color: var(--text); }
     .lang-sw:hover { border-color: var(--cyan); color: var(--cyan); }
 
     /* ───────────── 页脚 ───────────── */
@@ -307,9 +347,12 @@
       .hero h1 { font-size: 2.3rem; }
       .stats { grid-template-columns: repeat(2, 1fr); }
       .flip-grid { grid-template-columns: 1fr; }
+      .pipeline { grid-template-columns: 1fr; }
+      .pipe-arrow { transform: rotate(90deg); }
+      .input-split { grid-template-columns: 1fr; }
     }
     @media (max-width: 520px) {
-      .brand-sep, .brand-name .sub { display: none; }
+      .brand-sep, .brand-name .sub, .nav-links { display: none; }
       .hdr { padding: 8px 16px; }
       .stats { grid-template-columns: 1fr 1fr; }
     }
@@ -322,13 +365,15 @@
   <header>
     <div class="hdr">
       <a class="brand" href="/">
-        <span class="logo-chip"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></span>
-        <span class="brand-sep"></span>
         <span class="brand-name">
-          <span class="name"><span class="co">无界计算</span><span class="product">BindForge</span></span>
-          <span class="sub">AI 驱动的蛋白结合剂设计平台</span>
+          <span class="name"><span class="product grad">BindForge</span></span>
         </span>
       </a>
+      <nav class="nav-links hidden" id="navLinks">
+        <a href="#pipeline">设计流程</a>
+        <a href="#workflow">开始使用</a>
+        <a href="#scope">适用范围</a>
+      </nav>
       <div class="hdr-actions">
         <span class="pill pill-purple hidden" id="quotaChip">今日免费任务 0/2</span>
         <span class="user-chip hidden" id="userChip"></span>
@@ -343,7 +388,7 @@
     <div class="auth-card">
       <div class="auth-brand"><span class="logo-chip"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></span></div>
       <h2 id="authTitle">登录平台</h2>
-      <div class="sub" id="authSub">登录后使用蛋白结合剂设计工具</div>
+      <div class="sub" id="authSub">登录后使用多肽药物设计工具</div>
       <div class="auth-tabs">
         <button id="tabLogin" class="active" data-mode="login">登录</button>
         <button id="tabRegister" data-mode="register">注册</button>
@@ -364,8 +409,8 @@
     <!-- Hero：大标题 + 打字副标题 + CTA + 科技图形 -->
     <div class="hero">
       <div class="hero-copy">
-        <span class="eyebrow">UNIBINDMD 无界计算生物科技</span>
-        <h1>AI 驱动的<span class="grad">蛋白结合剂设计</span></h1>
+        <span class="eyebrow">专注多肽药物 · AI 一体化设计平台</span>
+        <h1>AI 和物理驱动的<span class="grad">多肽药物设计</span></h1>
         <p class="type-line"><span id="typed"></span><span class="cursor"></span></p>
         <div class="hero-cta">
           <button class="btn btn-primary" id="ctaStart">立即体验</button>
@@ -373,43 +418,14 @@
         </div>
       </div>
       <div class="hero-art">
-        <svg viewBox="0 0 400 400" fill="none">
-          <defs>
-            <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#00d4ff"/><stop offset="1" stop-color="#7b2ffc"/>
-            </linearGradient>
-          </defs>
-          <!-- 分子网络连线 -->
-          <g stroke="url(#edge)" stroke-width="1.4" opacity=".55">
-            <line x1="200" y1="200" x2="130" y2="120"/>
-            <line x1="200" y1="200" x2="270" y2="120"/>
-            <line x1="200" y1="200" x2="120" y2="260"/>
-            <line x1="200" y1="200" x2="280" y2="260"/>
-            <line x1="200" y1="200" x2="200" y2="80"/>
-            <line x1="200" y1="200" x2="200" y2="320"/>
-            <line x1="130" y1="120" x2="200" y2="80"/>
-            <line x1="270" y1="120" x2="200" y2="80"/>
-            <line x1="120" y1="260" x2="200" y2="320"/>
-            <line x1="280" y1="260" x2="200" y2="320"/>
-            <line x1="130" y1="120" x2="80" y2="60"/>
-            <line x1="270" y1="120" x2="320" y2="60"/>
-            <line x1="120" y1="260" x2="70" y2="330"/>
-            <line x1="280" y1="260" x2="330" y2="330"/>
-          </g>
-          <!-- 分子节点 -->
-          <g class="node"><circle cx="200" cy="200" r="14" fill="#00d4ff"/><circle cx="200" cy="200" r="20" stroke="#00d4ff" stroke-width="1.2" opacity=".5"/></g>
-          <circle class="node" cx="130" cy="120" r="9" fill="#7b2ffc"/>
-          <circle class="node" cx="270" cy="120" r="9" fill="#7b2ffc"/>
-          <circle class="node" cx="120" cy="260" r="9" fill="#7b2ffc"/>
-          <circle class="node" cx="280" cy="260" r="9" fill="#7b2ffc"/>
-          <circle class="node" cx="200" cy="80" r="7" fill="#00d4ff"/>
-          <circle class="node" cx="200" cy="320" r="7" fill="#00d4ff"/>
-          <circle class="node" cx="80" cy="60" r="5" fill="#5a9bff"/>
-          <circle class="node" cx="320" cy="60" r="5" fill="#5a9bff"/>
-          <circle class="node" cx="70" cy="330" r="5" fill="#5a9bff"/>
-          <circle class="node" cx="330" cy="330" r="5" fill="#5a9bff"/>
-        </svg>
+        <img src="/0.png" alt="BindForge 多肽药物设计示意" />
       </div>
+    </div>
+
+    <!-- 设计流程：Bindcraft → Boltz-2 / Chai-1 → MD -->
+    <div class="section-title" id="pipeline"><span>设计流程 Pipeline</span></div>
+    <div class="pipeline reveal">
+      <img src="/1_01.png" alt="BindForge 设计流程：Bindcraft → Boltz-2 / Chai-1 → 分子动力学" class="pipeline-img" />
     </div>
 
     <!-- 数据统计 -->
@@ -420,47 +436,8 @@
       <div class="stat"><div class="stat-num" data-target="2" data-suffix="">2</div><div class="stat-label">每日免费任务</div></div>
     </div>
 
-    <!-- 核心能力：3D 翻转卡片 -->
-    <div class="section-title"><span>核心能力 Core</span></div>
-    <div class="flip-grid">
-      <div class="flip-card reveal">
-        <div class="flip-inner">
-          <div class="flip-face flip-front">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/>
-            </svg>
-            <b>序列设计 Design</b><span>de novo 生成候选结合剂</span>
-          </div>
-          <div class="flip-face flip-back"><p>针对靶点自动生成候选结合剂序列，可设定长度、数量与热点残基，快速产出多样化的候选库。</p></div>
-        </div>
-      </div>
-      <div class="flip-card reveal">
-        <div class="flip-inner">
-          <div class="flip-face flip-front">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#7b2ffc" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="8" cy="12" r="4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/>
-              <path d="M11.5 10.5L16 7M11.5 13.5L16 17"/>
-            </svg>
-            <b>结构预测 Predict</b><span>开源 AlphaFold3 替代</span>
-          </div>
-          <div class="flip-face flip-back"><p>使用 Boltz-2 / Chai-1 等开源模型折叠靶点 + 结合剂复合物，规避权重授权壁垒，输出全原子复合结构。</p></div>
-        </div>
-      </div>
-      <div class="flip-card reveal">
-        <div class="flip-inner">
-          <div class="flip-face flip-front">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12h4l2-6 4 12 2-6h6"/>
-            </svg>
-            <b>MD 验证 Validate</b><span>OpenMM 稳定性评估</span>
-          </div>
-          <div class="flip-face flip-back"><p>OpenMM 分子动力学（隐式 GBSA）验证结合剂是否保持预测构象、保留界面接触并稳定结合，据此排序候选。</p></div>
-        </div>
-      </div>
-    </div>
-
     <!-- ── 工具区：提交 → 任务 → 结果 ── -->
-    <div class="section-title"><span>开始使用 Workflow</span></div>
+    <div class="section-title" id="workflow"><span>开始使用 Workflow</span></div>
 
     <div class="card reveal" id="submitCard">
       <div class="card-head">
@@ -470,16 +447,20 @@
 
       <div class="field-group">
         <div class="fg-title">靶点蛋白</div>
-        <label class="file-drop" for="file">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/>
-          </svg>
-          <span class="fd-main">点击上传结构文件</span>
-          <span class="fd-sub">支持 PDB / CIF / mmCIF / FASTA</span>
-        </label>
-        <input id="file" class="file-input" type="file" accept=".pdb,.cif,.mmcif,.fasta,.fa,.faa,.txt" />
-        <div class="or-divider"><span>或直接粘贴靶点氨基酸序列</span></div>
-        <textarea id="target" placeholder="例如：MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP"></textarea>
+        <div class="input-split">
+          <label class="file-drop" for="file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/>
+            </svg>
+            <span class="fd-main">点击上传结构文件</span>
+            <span class="fd-sub">支持 PDB / CIF / mmCIF / FASTA</span>
+          </label>
+          <input id="file" class="file-input" type="file" accept=".pdb,.cif,.mmcif,.fasta,.fa,.faa,.txt" />
+          <div class="paste-col">
+            <div class="paste-label">或直接粘贴靶点氨基酸序列</div>
+            <textarea id="target" placeholder="例如：MKTAYIAKQRQISFVKSHFSRQDILDLWIYHTQGYFP"></textarea>
+          </div>
+        </div>
         <div class="hint" style="margin-top:.6rem">若靶点为多链复合物，可指定要设计的链 ID（多个用逗号分隔）：</div>
         <input id="target_chain" placeholder="留空 = 全部链；例如 A 或 A,B" />
       </div>
@@ -531,7 +512,7 @@
       <div class="log hidden" id="log"></div>
     </div>
 
-    <div class="card card-info reveal">
+    <div class="card card-info reveal" id="scope">
       <h2>适用范围与限制 / Scope &amp; limits</h2>
       <table class="note-table">
         <thead><tr><th>项目</th><th>限制说明</th></tr></thead>
@@ -555,7 +536,7 @@
         <span class="logo-chip"><img class="brand-logo" src="/logo.png" alt="UniBindMD 无界计算" /></span>
         <div class="legal">
           © 2026 深圳市无界计算生物科技有限公司 UniBindMD Biotech<br />
-          BindForge 蛋白结合剂设计平台 &nbsp;|&nbsp; 粤ICP备2026102804号
+          BindForge 多肽药物设计平台 &nbsp;|&nbsp; 粤ICP备2026102804号
         </div>
       </div>
     </footer>
@@ -580,7 +561,7 @@
     const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
     const I18N = {
       login: '登录', register: '注册', loginTitle: '登录平台', registerTitle: '注册账号',
-      loginSub: '登录后使用蛋白结合剂设计工具', registerSub: '创建账号以使用 BindForge',
+      loginSub: '登录后使用多肽药物设计工具', registerSub: '创建账号以使用 BindForge',
       email: '邮箱', password: '密码', passwordMin: '密码至少 8 位',
       loginBtn: '登录', registerBtn: '注册并登录',
       errNeedEmail: '请输入邮箱和密码', errNeedPass: '密码至少 8 位',
@@ -601,8 +582,8 @@
 
     // ── auth UI ──
     let authMode = 'login';
-    function showAuth() { $('authView').classList.remove('hidden'); $('appView').classList.add('hidden'); $('logoutBtn').classList.add('hidden'); $('userChip').classList.add('hidden'); }
-    function showApp() { $('authView').classList.add('hidden'); $('appView').classList.remove('hidden'); $('logoutBtn').classList.remove('hidden'); }
+    function showAuth() { $('authView').classList.remove('hidden'); $('appView').classList.add('hidden'); $('logoutBtn').classList.add('hidden'); $('userChip').classList.add('hidden'); $('navLinks').classList.add('hidden'); }
+    function showApp() { $('authView').classList.add('hidden'); $('appView').classList.remove('hidden'); $('logoutBtn').classList.remove('hidden'); $('navLinks').classList.remove('hidden'); }
 
     async function loadMe() {
       try {
@@ -664,7 +645,13 @@
           j = await api('/api/jobs', { method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({ target: seq, ...params }) });
         }
-        if (j.id) pollJob(j.id);
+        if (j.id) {
+          $('resultsCard').classList.remove('hidden');
+          $('resultJobId').textContent = j.id;
+          $('resultsEmpty').textContent = '任务已提交（ID: ' + j.id + '），正在排队运行，进度见下方日志。';
+          pollJob(j.id);
+          $('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       } catch (e) {
         $('resultsCard').classList.remove('hidden');
         $('resultJobId').textContent = '–';
@@ -674,6 +661,12 @@
     }
 
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function fmtSize(n) {
+      if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+      if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+      return n + ' B';
+    }
 
     async function pollJob(id) {
       const j = await api('/api/jobs/' + id);
@@ -754,6 +747,21 @@
     }
 
     // ── wiring ──
+    $('file').onchange = (e) => {
+      const f = e.target.files[0];
+      const drop = document.querySelector('.file-drop');
+      const main = drop.querySelector('.fd-main');
+      const sub = drop.querySelector('.fd-sub');
+      if (f) {
+        main.textContent = '✓ 已选择：' + f.name;
+        sub.textContent = fmtSize(f.size) + ' · 可再次点击更换';
+        drop.classList.add('selected');
+      } else {
+        main.textContent = '点击上传结构文件';
+        sub.textContent = '支持 PDB / CIF / mmCIF / FASTA';
+        drop.classList.remove('selected');
+      }
+    };
     $('submit').onclick = submitJob;
     $('authBtn').onclick = doAuth;
     $('logoutBtn').onclick = doLogout;
@@ -811,7 +819,7 @@
     // ── 打字机效果 ──
     (function () {
       const el = $('typed');
-      const phrases = ['AI 驱动的一体化蛋白结合剂设计', '序列设计、结构预测、MD 稳定性验证', '云端 API 计算，无需本地 GPU'];
+      const phrases = ['AI 和物理驱动的一体化多肽药物设计', '序列设计、结构预测、MD 稳定性验证', '云端 API 计算，无需本地 GPU'];
       let pi = 0, ci = 0, del = false;
       (function type() {
         const t = phrases[pi];
